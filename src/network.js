@@ -19,6 +19,8 @@ export class HyperShareNetwork {
     this.storagePath = null;
     this.localStore = null;
     this.networksCore = null;
+    this.driveCache = null;
+    this.cacheTimeout = null;
   }
 
   async init() {
@@ -379,6 +381,28 @@ export class HyperShareNetwork {
     return adminRegistry;
   }
 
+  async getDriveStats(driveKey) {
+    if (!this.activeNetwork) return null;
+    const drive = await this.getDrive(driveKey);
+    if (!drive) return null;
+
+    await drive.update();
+
+    const stats = {
+      peers: drive.core.peers.length,
+      totalBlocks: drive.core.length,
+      downloadedBlocks: drive.core.downloaded()
+    };
+
+    if (drive.blobs) {
+      await drive.blobs.update();
+      stats.totalBlocks += drive.blobs.core.length;
+      stats.downloadedBlocks += drive.blobs.core.downloaded();
+    }
+
+    return stats;
+  }
+
   async startWriterAdditionMonitoring(network) {
     console.log('Starting writer addition monitoring for network:', network.name);
     
@@ -516,7 +540,23 @@ export class HyperShareNetwork {
       drives: totalDrives,
       files: totalFiles,
       size: totalSize,
-      peers: this.activeNetwork.swarm.connections.size
+      peers: this.activeNetwork.swarm.connections.size,
+      swarm: this.getSwarmStats()
+    };
+  }
+
+  getSwarmStats() {
+    if (!this.activeNetwork) return null;
+
+    const swarm = this.activeNetwork.swarm;
+    const stats = swarm.stats;
+
+    return {
+      peers: swarm.connections.size,
+      connecting: swarm.connecting,
+      topics: swarm.topics.size,
+      uploadedBytes: stats.totals.uploadedBytes,
+      downloadedBytes: stats.totals.downloadedBytes
     };
   }
 
@@ -642,8 +682,17 @@ export class HyperShareNetwork {
     await this.activeNetwork.userDrive.del(filePath);
   }
 
-  async browseDrives(filters = {}) {
+  async browseDrives(filters = {}, force = false) {
     if (!this.activeNetwork) return [];
+
+    if (this.driveCache && !force && (this.cacheTimeout > Date.now())) {
+      return this.driveCache;
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('loading-drives-start'));
+    }
+
     await this.activeNetwork.autobase.update();
     
     const db = this.activeNetwork.autobase.view;
@@ -658,6 +707,13 @@ export class HyperShareNetwork {
       drives.push({ key: node.key.replace(prefix, ''), ...value });
     }
     
+    this.driveCache = drives;
+    this.cacheTimeout = Date.now() + 30000; // 30 second cache
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('loading-drives-end'));
+    }
+
     return drives;
   }
 
@@ -749,27 +805,22 @@ export class HyperShareNetwork {
 
     network.swarm.join(drive.discoveryKey, { server: false, client: true });
     
-    await this.waitForDriveSync(drive, network.swarm);
+    await this.waitForDriveSync(drive);
     return drive;
   }
 
-  async waitForDriveSync(drive, swarm, timeout = 5000) {
-    await swarm.flush();
-    return new Promise(resolve => {
+  async waitForDriveSync(drive, timeout = 5000) {
+    await drive.update();
+    if (drive.core.length > 1) return;
+
+    const promise = new Promise(resolve => {
       const timer = setTimeout(resolve, timeout);
-      if (drive.core.length > 1 || (drive.blobs && drive.blobs.core.length > 0)) {
+      drive.core.once('download', () => {
         clearTimeout(timer);
-        return resolve();
-      }
-      const ondownload = () => {
-        clearTimeout(timer);
-        drive.core.removeListener('download', ondownload);
-        if (drive.blobs) drive.blobs.core.removeListener('download', ondownload);
         resolve();
-      };
-      drive.core.on('download', ondownload);
-      if (drive.blobs) drive.blobs.core.on('download', ondownload);
+      });
     });
+    await promise;
   }
 
   async saveNetworkInfo(network) {

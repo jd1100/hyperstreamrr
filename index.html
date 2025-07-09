@@ -1243,6 +1243,14 @@
                             <div class="stat-value" id="drive-count">0</div>
                             <div class="stat-label">Drives</div>
                         </div>
+                        <div class="stat">
+                            <div class="stat-value" id="upload-speed">0 B/s</div>
+                            <div class="stat-label">Upload</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value" id="download-speed">0 B/s</div>
+                            <div class="stat-label">Download</div>
+                        </div>
                     </div>
                 </div>
 
@@ -1492,6 +1500,24 @@
         let networks = [];
         let isAdmin = false;
         let statsInterval = null;
+        let lastStats = null;
+
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+
+        function formatSpeed(bytes) {
+            if (bytes === 0) return '0 B/s';
+            const k = 1024;
+            const sizes = ['B/s', 'KB/s', 'MB/s', 'GB/s', 'TB/s'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
 
         // Initialize app - simplified version
         async function init() {
@@ -1512,6 +1538,18 @@
                             loadNetwork(currentNetwork);
                             alert('Your role has been updated to Admin! You now have access to admin features.');
                         }
+                    });
+
+                    window.addEventListener('loading-drives-start', () => {
+                        const contentArea = document.getElementById('content-area');
+                        if (contentArea.querySelector('.drives-grid')) {
+                            contentArea.querySelector('.view-header').insertAdjacentHTML('afterend', '<div class="loading"><div class="spinner"></div></div>');
+                        }
+                    });
+
+                    window.addEventListener('loading-drives-end', () => {
+                        const loader = document.querySelector('.content-area .loading');
+                        if (loader) loader.remove();
                     });
                     
                     await initializeApp();
@@ -1550,6 +1588,7 @@
 
             const network = hyperShare.activeNetwork;
             const isAdmin = network.role === 'admin';
+            const stats = lastStats || { swarm: { uploadedBytes: 0, downloadedBytes: 0 }, peers: 0 };
             
             let content = `
                 <div class="network-details">
@@ -1564,7 +1603,15 @@
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">Connected Peers:</span>
-                        <span class="detail-value">${network.swarm.connections.size}</span>
+                        <span class="detail-value">${stats.peers}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Total Uploaded:</span>
+                        <span class="detail-value">${formatBytes(stats.swarm.uploadedBytes)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Total Downloaded:</span>
+                        <span class="detail-value">${formatBytes(stats.swarm.downloadedBytes)}</span>
                     </div>
                 </div>
             `;
@@ -1821,10 +1868,33 @@
             
             // Start stats updates
             if (statsInterval) clearInterval(statsInterval);
-            statsInterval = setInterval(updateStats, 5000);
+            lastStats = null; // Reset stats for new network
+            statsInterval = setInterval(updateStats, 2000); // Update every 2 seconds for smoother speed
             updateStats();
             
             showView('browse');
+        }
+
+        async function updateStats() {
+            if (!hyperShare || !currentNetwork) return;
+
+            try {
+                const stats = await hyperShare.getNetworkStats();
+                document.getElementById('peer-count').textContent = stats.peers;
+                document.getElementById('drive-count').textContent = stats.drives;
+
+                if (lastStats && stats.swarm) {
+                    const upSpeed = (stats.swarm.uploadedBytes - lastStats.swarm.uploadedBytes) / 2;
+                    const downSpeed = (stats.swarm.downloadedBytes - lastStats.swarm.downloadedBytes) / 2;
+                    document.getElementById('upload-speed').textContent = formatSpeed(upSpeed);
+                    document.getElementById('download-speed').textContent = formatSpeed(downSpeed);
+                }
+
+                lastStats = stats;
+            } catch (error) {
+                console.error('Failed to update stats:', error);
+                if (statsInterval) clearInterval(statsInterval);
+            }
         }
 
         async function showView(view) {
@@ -1899,6 +1969,23 @@
                         <button class="btn" onclick="refreshDrives()">Try Again</button>
                     </div>
                 `;
+            }
+        }
+
+        async function refreshDrives() {
+            const drives = await hyperShare.browseDrives({}, true);
+            const grid = document.getElementById('drives-grid');
+            if (grid) {
+                grid.innerHTML = drives.length === 0 
+                    ? `<div class="empty-state">
+                         <div class="loading-content">
+                             <h3>No drives found</h3>
+                             <p style="color: var(--text-secondary); margin-bottom: 16px;">
+                                 No drives have been published on this network yet.
+                             </p>
+                         </div>
+                       </div>`
+                    : drives.map(drive => renderDriveCard(drive)).join('');
             }
         }
 
@@ -2005,779 +2092,113 @@
                         <span class="drive-stat"><strong>${formatBytes(drive.stats?.totalSize || 0)}</strong></span>
                         <span class="drive-stat"><strong>${drive.stats?.fileCount || 0}</strong> files</span>
                     </div>
-                    
-                    <div class="drive-tags">
-                        ${(drive.tags || []).map(tag => `<span class="tag">${tag}</span>`).join('')}
-                    </div>
-                    
                     <div class="drive-actions">
-                        <button class="btn" onclick="republishDrive('${drive.key}')">Republish</button>
-                        <button class="btn btn-danger" onclick="confirmUnpublish('${drive.key}')">Unpublish</button>
+                        <button class="btn" onclick="event.stopPropagation(); browseDrive('${drive.key}', '${drive.name}')">Browse</button>
+                        ${isAdmin && !drive.verified ? `<button class="btn btn-secondary" onclick="event.stopPropagation(); verifyDrive('${drive.key}')">Verify</button>` : ''}
+                        ${isOwner ? `<button class="btn btn-danger" onclick="event.stopPropagation(); confirmUnpublish('${drive.key}')">Unpublish</button>` : ''}
                     </div>
                 </div>
             `;
         }
 
-        async function confirmUnpublish(driveKey) {
-            if (!confirm('Are you sure you want to unpublish this drive? This will remove it from the network index for all users.')) {
-                return;
-            }
-
-            try {
-                await hyperShare.unpublishDrive(driveKey);
-                alert('Unpublish event sent! The drive will be removed shortly.');
-                // Refresh the current view after a short delay to allow the network to update
-                setTimeout(() => showView(document.querySelector('.nav-item.active').onclick.toString().match(/'([^']+)'/)[1]), 1000);
-            } catch (error) {
-                alert('Failed to unpublish drive: ' + error.message);
-            }
-        }
-
-        async function republishDrive(driveKey) {
-            const drives = await hyperShare.getMyDrives();
-            const drive = drives.find(d => d.key === driveKey);
-            if (!drive) {
-                alert('Drive not found!');
-                return;
-            }
-
-            // Pre-fill the publish form
-            document.getElementById('drive-name').value = drive.name;
-            document.getElementById('drive-description').value = drive.description;
-            document.getElementById('drive-tags').value = (drive.tags || []).join(', ');
-            
-            showView('publish');
-            alert('Drive information has been pre-filled. Make your changes and click "Publish Drive" to update.');
-        }
-
-        async function unpublishDrive(driveKey) {
-            if (!confirm('Are you sure you want to unpublish this drive? It will be removed for all users on the network.')) {
-                return;
-            }
-
-            try {
-                await hyperShare.unpublishDrive(driveKey);
-                alert('Drive unpublished successfully!');
-                showView('my-drives');
-            } catch (error) {
-                alert('Failed to unpublish drive: ' + error.message);
-            }
-        }
-
-        let currentViewMode = 'list';
-        let currentSortBy = 'name';
-        let currentSortOrder = 'asc';
-        let currentFileSearch = '';
-        let currentBrowseFiles = [];
-        let currentBrowseDriveKey = '';
-        let currentBrowseDriveName = '';
-        let currentBrowsePath = '/';
-
-        function closePreview() {
-            const previewContainer = document.getElementById('file-preview');
-            const previewBody = document.getElementById('preview-body');
-            previewBody.innerHTML = ''; // Clear content to stop video playback
-            previewContainer.style.display = 'none';
-        }
-
-        async function previewFile(driveKey, file) {
-            const previewContainer = document.getElementById('file-preview');
-            const previewBody = document.getElementById('preview-body');
-            const previewFilename = document.getElementById('preview-filename');
-            
-            previewFilename.textContent = file.name;
-            previewBody.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading preview...</p></div>';
-            previewContainer.style.display = 'flex';
-
-            try {
-                const fileType = getFileType(file.name);
-
-                if (fileType.startsWith('video/')) {
-                    const stream = await hyperShare.createFileDownloadStream(driveKey, file.path);
-                    const chunks = [];
-                    for await (const chunk of stream) {
-                        chunks.push(chunk);
-                    }
-                    const blob = new Blob(chunks, { type: fileType });
-                    const url = URL.createObjectURL(blob);
-                    previewBody.innerHTML = `<video class="preview-video" controls autoplay src="${url}"></video>`;
-                } else if (fileType.startsWith('image/')) {
-                    const blob = await hyperShare.downloadFile(driveKey, file.path);
-                    const url = URL.createObjectURL(new Blob([blob]));
-                    previewBody.innerHTML = `<img class="preview-image" src="${url}">`;
-                } else if (fileType.startsWith('text/')) {
-                    const content = await hyperShare.downloadFile(driveKey, file.path);
-                    previewBody.innerHTML = `<pre class="preview-text">${new TextDecoder().decode(content)}</pre>`;
-                } else {
-                    previewBody.innerHTML = `<div class="loading">Preview not available for this file type.</div>`;
-                }
-            } catch (error) {
-                console.error('Error previewing file:', error);
-                previewBody.innerHTML = `<div class="error-state">Error loading preview: ${error.message}</div>`;
-            }
-        }
-
-        async function browseDrive(driveKey, driveName, path = '/') {
-            if (!driveName) {
-                const drive = (await hyperShare.browseDrives()).find(d => d.key === driveKey);
-                driveName = drive ? drive.name : 'Drive';
-            }
-
-            currentBrowseDriveKey = driveKey;
-            currentBrowseDriveName = driveName;
-            currentBrowsePath = path;
-            
-            // Show loading state
+        async function browseDrive(driveKey, driveName) {
             const contentArea = document.getElementById('content-area');
             contentArea.innerHTML = `
-                <div class="loading-state">
-                    <div class="spinner"></div>
-                    <h3>Connecting to drive "${driveName}"...</h3>
-                    <p style="color: var(--text-secondary);">
-                        Discovering peers and synchronizing drive contents.
-                        This may take a moment for the first access.
-                    </p>
+                <div class="view-header">
+                    <h1 class="view-title">${driveName}</h1>
+                    <div id="drive-sync-status">Syncing...</div>
+                </div>
+                <div class="file-browser" id="file-browser-view">
+                    <div class="loading"><div class="spinner"></div><p>Loading files...</p></div>
                 </div>
             `;
             
+            currentDriveBrowser.driveKey = driveKey;
+            currentDriveBrowser.path = '/';
+            await renderFileBrowser();
+        }
+
+        async function renderFileBrowser() {
+            const { driveKey, path } = currentDriveBrowser;
+            const browserView = document.getElementById('file-browser-view');
+            if (!browserView) return;
+
             try {
                 const files = await hyperShare.browseFiles(driveKey, path);
-                currentBrowseFiles = files;
-            } catch (error) {
-                console.error('Error loading files:', error);
-                contentArea.innerHTML = `
-                    <div class="error-state">
-                        <h3>Failed to access drive</h3>
-                        <p style="color: var(--danger);">Error: ${error.message}</p>
-                        <p style="color: var(--text-secondary);">
-                            This could happen if:
-                            • No peers are currently sharing this drive
-                            • Network connectivity issues
-                            • Drive is no longer available
-                        </p>
-                        <div style="margin-top: 20px;">
-                            <button class="btn" onclick="browseDrive('${driveKey}', '${driveName}', '${path}')">Retry</button>
-                            <button class="btn btn-secondary" onclick="showView('browse')">Back to Drives</button>
-                        </div>
-                    </div>
-                `;
-                return;
-            }
-            
-            const pathParts = path.split('/').filter(p => p);
-            const breadcrumbs = [{ name: driveName, path: '/' }];
-            let currentPath = '/';
-            for (const part of pathParts) {
-                currentPath += part + '/';
-                breadcrumbs.push({ name: part, path: currentPath });
-            }
-            contentArea.innerHTML = `
-                <div class="file-browser">
-                    <div class="browser-header">
-                        <button class="btn btn-secondary" onclick="showView('browse')">← Back to Drives</button>
-                        <div class="breadcrumb">
-                            ${breadcrumbs.map(b => `<span class="breadcrumb-item" onclick="browseDrive('${driveKey}', '${driveName}', '${b.path}')">${b.name}</span>`).join(' / ')}
-                        </div>
-                        <div class="browser-controls">
-                            ${isAdmin && isOwnDrive(driveKey) ? `
-                                <button class="btn btn-secondary" onclick="showAddFilesModal()">📁 Add Files</button>
-                                <button class="btn btn-secondary" onclick="showCreateFolderModal()">📁 New Folder</button>
-                            ` : ''}
-                            <div class="view-toggle">
-                                <button class="${currentViewMode === 'list' ? 'active' : ''}" onclick="toggleViewMode('list')">☰</button>
-                                <button class="${currentViewMode === 'grid' ? 'active' : ''}" onclick="toggleViewMode('grid')">⊞</button>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="browser-toolbar">
-                        <div class="file-search">
-                            <span class="search-icon">🔍</span>
-                            <input type="text" placeholder="Search files..." value="${currentFileSearch}" oninput="filterFiles(this.value)">
-                        </div>
-                        <div class="sort-dropdown">
-                            <button class="sort-button" onclick="toggleSortMenu()">
-                                <span>Sort: Name ↑</span>
-                                <span>▼</span>
-                            </button>
-                            <div class="sort-menu" id="sort-menu">
-                                <div class="sort-option ${currentSortBy === 'name' ? 'active' : ''}" onclick="setSortBy('name')">Name</div>
-                                <div class="sort-option ${currentSortBy === 'size' ? 'active' : ''}" onclick="setSortBy('size')">Size</div>
-                                <div class="sort-option ${currentSortBy === 'modified' ? 'active' : ''}" onclick="setSortBy('modified')">Modified</div>
-                                <div class="sort-option ${currentSortBy === 'type' ? 'active' : ''}" onclick="setSortBy('type')">Type</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="file-list ${currentViewMode === 'grid' ? 'grid-view' : ''}" id="file-list">
-                        <!-- Files will be loaded here -->
-                    </div>
-                </div>
-                
-                <div class="file-preview" id="file-preview" onclick="closePreview(event)">
-                    <div class="preview-content">
-            <div class="preview-header">
-                <h3 class="preview-title" id="preview-filename"></h3>
-                <button class="preview-close" onclick="closePreview()">&times;</button>
-            </div>
-            <div class="preview-body" id="preview-body">
-                <!-- Preview content goes here -->
-            </div>
-        </div>
-                </div>
-            `;
-            
-            // Load files into the file list after the HTML is inserted
-            setTimeout(() => {
-                const fileList = document.getElementById('file-list');
-                if (fileList) {
-                    fileList.innerHTML = renderFileList();
-                }
-            }, 0);
-        }
-
-        function renderFileList() {
-            const filteredFiles = getFilteredAndSortedFiles();
-            
-            if (filteredFiles.length === 0) {
-                return `
-                    <div class="empty-folder">
-                        <div class="empty-folder-icon">📁</div>
-                        <p>This directory is empty or no files match your search.</p>
-                    </div>
-                `;
-            }
-            
-            return filteredFiles.map(file => renderFileItem(file)).join('');
-        }
-
-        function renderFileItem(file) {
-            const icon = getFileIcon(file);
-            const action = file.isDirectory
-                ? `onclick="browseDrive('${currentBrowseDriveKey}', '${currentBrowseDriveName}', '${file.path}')"`
-                : `onclick="handleFileClick('${file.path}', '${file.name}', event)"`;
-
-            const canEdit = isAdmin && isOwnDrive(currentBrowseDriveKey);
-
-            if (currentViewMode === 'grid') {
-                return `
-                    <div class="file-item" ${action}>
-                        <div class="file-icon">${icon}</div>
-                        <div class="file-name">${file.name}</div>
-                        <div class="file-size">${file.isDirectory ? '-' : formatBytes(file.size)}</div>
-                        <div class="file-meta">${new Date(file.mtime).toLocaleDateString()}</div>
-                        ${canEdit ? `
-                            <button class="btn btn-danger" onclick="event.stopPropagation(); confirmDeleteFile('${file.path}', '${file.name}', ${file.isDirectory})" style="font-size: 12px; padding: 4px 8px;">
-                                🗑️
-                            </button>
-                        ` : ''}
-                    </div>
-                `;
-            } else {
-                return `
-                    <div class="file-item" ${action}>
-                        <span class="file-icon">${icon}</span>
+                let fileListHtml = files.map(file => `
+                    <div class="file-item" onclick="${file.isDirectory ? `navigateToFolder('${file.path}')` : `downloadFile('${driveKey}', '${file.path}')`}">
+                        <span class="file-icon">${file.isDirectory ? '📁' : '📄'}</span>
                         <span class="file-name">${file.name}</span>
-                        <span class="file-size">${file.isDirectory ? '-' : formatBytes(file.size)}</span>
-                        <span class="file-meta">${new Date(file.mtime).toLocaleDateString()}</span>
-                        <div class="file-actions">
-                            ${!file.isDirectory ? `
-                                <button class="btn btn-secondary" onclick="event.stopPropagation(); downloadFile('${currentBrowseDriveKey}', '${file.path}')">
-                                    Download
-                                </button>
-                            ` : ''}
-                            ${canEdit ? `
-                                <button class="btn btn-danger" onclick="event.stopPropagation(); confirmDeleteFile('${file.path}', '${file.name}', ${file.isDirectory})">
-                                    Delete
-                                </button>
-                            ` : ''}
-                        </div>
+                        <span class="file-size">${file.isDirectory ? '' : formatBytes(file.size)}</span>
                     </div>
+                `).join('');
+
+                if (files.length === 0) {
+                    fileListHtml = '<div class="empty-folder"><p>This folder is empty.</p></div>';
+                }
+
+                browserView.innerHTML = `
+                    <div class="browser-header">
+                        <div class="breadcrumb">${renderBreadcrumbs()}</div>
+                    </div>
+                    <div class="file-list">${fileListHtml}</div>
                 `;
+            } catch (e) {
+                browserView.innerHTML = `<div class="error-state"><p>Could not load files: ${e.message}</p></div>`;
             }
         }
 
-        function getFileIcon(file) {
-            if (file.isDirectory) return '📁';
-            
-            const ext = file.name.split('.').pop()?.toLowerCase();
-            const iconMap = {
-                // Images
-                'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️', 'bmp': '🖼️', 'svg': '🖼️',
-                // Videos
-                'mp4': '🎬', 'avi': '🎬', 'mkv': '🎬', 'mov': '🎬', 'wmv': '🎬', 'flv': '🎬',
-                // Audio
-                'mp3': '🎵', 'wav': '🎵', 'flac': '🎵', 'aac': '🎵', 'ogg': '🎵',
-                // Documents
-                'pdf': '📄', 'doc': '📄', 'docx': '📄', 'txt': '📄', 'rtf': '📄',
-                // Archives
-                'zip': '📦', 'rar': '📦', '7z': '📦', 'tar': '📦', 'gz': '📦',
-                // Code
-                'js': '📜', 'html': '📜', 'css': '📜', 'json': '📜', 'xml': '📜',
-                // Executables
-                'exe': '⚙️', 'msi': '⚙️', 'dmg': '⚙️', 'pkg': '⚙️'
-            };
-            
-            return iconMap[ext] || '📄';
+        function renderBreadcrumbs() {
+            const path = currentDriveBrowser.path;
+            const parts = path.split('/').filter(p => p);
+            let breadcrumbs = '<span class="breadcrumb-item" onclick="navigateToFolder('/')">Home</span>';
+            let currentPath = '';
+            for (const part of parts) {
+                currentPath += `/${part}`;
+                breadcrumbs += ` / <span class="breadcrumb-item" onclick="navigateToFolder('${currentPath}')">${part}</span>`;
+            }
+            return breadcrumbs;
         }
 
-        function getFilteredAndSortedFiles() {
-            let files = [...currentBrowseFiles];
-            
-            // Filter by search term
-            if (currentFileSearch) {
-                files = files.filter(file => 
-                    file.name.toLowerCase().includes(currentFileSearch.toLowerCase())
-                );
-            }
-            
-            // Sort files
-            files.sort((a, b) => {
-                // Directories first
-                if (a.isDirectory && !b.isDirectory) return -1;
-                if (!a.isDirectory && b.isDirectory) return 1;
-                
-                let aVal, bVal;
-                switch (currentSortBy) {
-                    case 'name':
-                        aVal = a.name.toLowerCase();
-                        bVal = b.name.toLowerCase();
-                        break;
-                    case 'size':
-                        aVal = a.size || 0;
-                        bVal = b.size || 0;
-                        break;
-                    case 'modified':
-                        aVal = new Date(a.mtime).getTime();
-                        bVal = new Date(b.mtime).getTime();
-                        break;
-                    case 'type':
-                        aVal = a.name.split('.').pop()?.toLowerCase() || '';
-                        bVal = b.name.split('.').pop()?.toLowerCase() || '';
-                        break;
-                    default:
-                        aVal = a.name.toLowerCase();
-                        bVal = b.name.toLowerCase();
-                }
-                
-                if (aVal < bVal) return currentSortOrder === 'asc' ? -1 : 1;
-                if (aVal > bVal) return currentSortOrder === 'asc' ? 1 : -1;
-                return 0;
-            });
-            
-            return files;
-        }
-
-        function toggleViewMode(mode) {
-            currentViewMode = mode;
-            const fileList = document.getElementById('file-list');
-            if (fileList) {
-                fileList.className = `file-list ${mode === 'grid' ? 'grid-view' : ''}`;
-                fileList.innerHTML = renderFileList();
-            }
-            
-            // Update button states
-            document.querySelectorAll('.view-toggle button').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            document.querySelector(`.view-toggle button[onclick="toggleViewMode('${mode}')"]`).classList.add('active');
-        }
-
-        function filterFiles(searchTerm) {
-            currentFileSearch = searchTerm;
-            const fileList = document.getElementById('file-list');
-            if (fileList) {
-                fileList.innerHTML = renderFileList();
-            }
-        }
-
-        function toggleSortMenu() {
-            const menu = document.getElementById('sort-menu');
-            menu.classList.toggle('show');
-        }
-
-        function setSortBy(sortBy) {
-            if (currentSortBy === sortBy) {
-                currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
-            } else {
-                currentSortBy = sortBy;
-                currentSortOrder = 'asc';
-            }
-            
-            const fileList = document.getElementById('file-list');
-            if (fileList) {
-                fileList.innerHTML = renderFileList();
-            }
-            
-            // Update sort button text
-            const sortButton = document.querySelector('.sort-button span');
-            if (sortButton) {
-                sortButton.textContent = `Sort: ${getSortLabel()}`;
-            }
-            
-            // Update active state
-            document.querySelectorAll('.sort-option').forEach(option => {
-                option.classList.remove('active');
-            });
-            const activeOption = document.querySelector(`[onclick="setSortBy('${sortBy}')"]`);
-            if (activeOption) {
-                activeOption.classList.add('active');
-            }
-            
-            // Close menu
-            document.getElementById('sort-menu').classList.remove('show');
-        }
-
-        function getSortLabel() {
-            const labels = {
-                'name': 'Name',
-                'size': 'Size',
-                'modified': 'Modified',
-                'type': 'Type'
-            };
-            return labels[currentSortBy] + (currentSortOrder === 'desc' ? ' ↓' : ' ↑');
-        }
-
-        function handleFileClick(filePath, fileName, event) {
-            if (event.ctrlKey || event.metaKey) {
-                // Ctrl/Cmd + click to download
-                downloadFile(currentBrowseDriveKey, filePath);
-            } else {
-                // Regular click to preview
-                previewFile(currentBrowseDriveKey, { name: fileName, path: filePath });
-            }
-        }
-
-        async function previewFile(driveKey, file) {
-            const previewContainer = document.getElementById('file-preview');
-            const previewBody = document.getElementById('preview-body');
-            
-            document.getElementById('preview-filename').textContent = file.name;
-            previewBody.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading preview...</p></div>';
-            previewContainer.style.display = 'flex';
-
-            try {
-                const fileType = getFileType(file.name);
-
-                if (fileType.startsWith('video/')) {
-                    const stream = await hyperShare.createFileDownloadStream(driveKey, file.path);
-                    const chunks = [];
-                    for await (const chunk of stream) {
-                        chunks.push(chunk);
-                    }
-                    const blob = new Blob(chunks, { type: fileType });
-                    const url = URL.createObjectURL(blob);
-                    previewBody.innerHTML = `<video class="preview-video" controls autoplay src="${url}"></video>`;
-                } else if (fileType.startsWith('image/')) {
-                    const blob = await hyperShare.downloadFile(driveKey, file.path);
-                    const url = URL.createObjectURL(new Blob([blob]));
-                    previewBody.innerHTML = `<img class="preview-image" src="${url}">`;
-                } else if (fileType.startsWith('text/')) {
-                    const content = await hyperShare.downloadFile(driveKey, file.path);
-                    previewBody.innerHTML = `<pre class="preview-text">${new TextDecoder().decode(content)}</pre>`;
-                } else {
-                    previewBody.innerHTML = `<div class="loading">Preview not available for this file type.</div>`;
-                }
-            } catch (error) {
-                console.error('Error previewing file:', error);
-                previewBody.innerHTML = `<div class="error-state">Error loading preview: ${error.message}</div>`;
-            }
-        }
-
-        function closePreview(event) {
-            const preview = document.getElementById('file-preview');
-            if (event && event.target !== preview) return;
-            preview.style.display = 'none';
-        }
-
-        async function handleGlobalFileClick(driveKey, filePath, fileName, event) {
-            if (event.ctrlKey || event.metaKey) {
-                downloadFile(driveKey, filePath);
-            } else {
-                // Set temporary browse context for preview
-                const oldDriveKey = currentBrowseDriveKey;
-                currentBrowseDriveKey = driveKey;
-                await previewFile(driveKey, { name: fileName, path: filePath });
-                currentBrowseDriveKey = oldDriveKey;
-            }
-        }
-
-        function isOwnDrive(driveKey) {
-            if (!currentNetwork || !hyperShare.activeNetwork) return false;
-            const userDriveKey = hyperShare.activeNetwork.userDrive?.key;
-            if (!userDriveKey) return false;
-            // Convert buffer to hex string for comparison
-            const userDriveKeyHex = Array.from(userDriveKey).map(b => b.toString(16).padStart(2, '0')).join('');
-            return userDriveKeyHex === driveKey;
-        }
-
-        function showAddFilesModal() {
-            document.getElementById('add-files-modal').style.display = 'flex';
-        }
-
-        function showCreateFolderModal() {
-            document.getElementById('create-folder-modal').style.display = 'flex';
-        }
-
-        async function confirmDeleteFile(filePath, fileName, isDirectory) {
-            const itemType = isDirectory ? 'folder' : 'file';
-            if (confirm(`Are you sure you want to delete this ${itemType}: ${fileName}?`)) {
-                try {
-                    await hyperShare.deleteFile(currentBrowseDriveKey, filePath);
-                    // Refresh the file browser
-                    await browseDrive(currentBrowseDriveKey, currentBrowseDriveName, currentBrowsePath);
-                } catch (error) {
-                    alert('Failed to delete ' + itemType + ': ' + error.message);
-                }
-            }
-        }
-
-        async function addFilesToDrive() {
-            const fileInput = document.getElementById('add-files-input');
-            const files = Array.from(fileInput.files);
-            
-            if (files.length === 0) {
-                alert('Please select files to add');
-                return;
-            }
-            
-            try {
-                for (const file of files) {
-                    const content = await file.arrayBuffer();
-                    const filePath = currentBrowsePath === '/' ? `/${file.name}` : `${currentBrowsePath}/${file.name}`;
-                    await hyperShare.uploadFile(filePath, Buffer.from(content));
-                }
-                
-                closeModal('add-files-modal');
-                alert(`Added ${files.length} files`);
-                
-                // Refresh the file browser
-                await browseDrive(currentBrowseDriveKey, currentBrowseDriveName, currentBrowsePath);
-            } catch (error) {
-                alert('Failed to add files: ' + error.message);
-            }
-        }
-
-        async function createFolder() {
-            const folderName = document.getElementById('folder-name-input').value.trim();
-            
-            if (!folderName) {
-                alert('Please enter a folder name');
-                return;
-            }
-            
-            try {
-                const folderPath = currentBrowsePath === '/' ? `/${folderName}` : `${currentBrowsePath}/${folderName}`;
-                // Create an empty file in the folder to create the directory structure
-                await hyperShare.uploadFile(`${folderPath}/.gitkeep`, Buffer.from(''));
-                
-                closeModal('create-folder-modal');
-                document.getElementById('folder-name-input').value = '';
-                
-                // Refresh the file browser
-                await browseDrive(currentBrowseDriveKey, currentBrowseDriveName, currentBrowsePath);
-            } catch (error) {
-                alert('Failed to create folder: ' + error.message);
-            }
-        }
-
-        // Close sort menu when clicking outside
-        document.addEventListener('click', function(event) {
-            const sortDropdown = document.querySelector('.sort-dropdown');
-            if (sortDropdown && !sortDropdown.contains(event.target)) {
-                document.getElementById('sort-menu')?.classList.remove('show');
-            }
-        });
-
-        // File operations
-        function showUploadModal() {
-            document.getElementById('upload-modal').style.display = 'flex';
-        }
-
-        document.getElementById('file-upload').addEventListener('change', (e) => {
-            const files = Array.from(e.target.files);
-            const listEl = document.getElementById('upload-list');
-            
-            listEl.innerHTML = `
-                <h4>Selected Files:</h4>
-                ${files.map(f => `<div>${f.name} - ${formatBytes(f.size)}</div>`).join('')}
-            `;
-        });
-
-        // Add files input listener
-        document.addEventListener('DOMContentLoaded', function() {
-            const addFilesInput = document.getElementById('add-files-input');
-            if (addFilesInput) {
-                addFilesInput.addEventListener('change', (e) => {
-                    const files = Array.from(e.target.files);
-                    const listEl = document.getElementById('add-files-list');
-                    
-                    listEl.innerHTML = `
-                        <h4>Selected Files:</h4>
-                        ${files.map(f => `<div>${f.name} - ${formatBytes(f.size)}</div>`).join('')}
-                    `;
-                });
-            }
-        });
-
-        async function uploadSelectedFiles() {
-            const fileInput = document.getElementById('file-upload');
-            const files = Array.from(fileInput.files);
-            
-            if (files.length === 0) {
-                alert('Please select files to upload');
-                return;
-            }
-            
-            for (const file of files) {
-                const content = await file.arrayBuffer();
-                await hyperShare.uploadFile(`/${file.name}`, Buffer.from(content));
-            }
-            
-            closeModal('upload-modal');
-            alert(`Uploaded ${files.length} files`);
-        }
-
-        async function publishDrive() {
-            const name = document.getElementById('drive-name').value;
-            const description = document.getElementById('drive-description').value;
-            const tags = document.getElementById('drive-tags').value.split(',').map(t => t.trim()).filter(t => t);
-            
-            if (!name) {
-                alert('Please enter a drive name');
-                return;
-            }
-            
-            try {
-                await hyperShare.publishDrive({
-                    name,
-                    description,
-                    tags,
-                    categories: []
-                });
-                
-                alert('Drive published successfully!');
-                showView('browse');
-            } catch (error) {
-                alert('Failed to publish drive: ' + error.message);
-            }
-        }
-
-        async function verifyDrive(driveKey) {
-            try {
-                await hyperShare.verifyDrive(driveKey);
-                alert('Drive verified!');
-                showView('browse');
-            } catch (error) {
-                alert('Failed to verify drive: ' + error.message);
-            }
+        async function navigateToFolder(path) {
+            currentDriveBrowser.path = path;
+            await renderFileBrowser();
         }
 
         async function downloadFile(driveKey, filePath) {
             try {
                 const content = await hyperShare.downloadFile(driveKey, filePath);
-                
-                // Create download link
-                const blob = new Blob([content]);
+                const blob = new Blob([content], { type: getFileType(filePath) });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = filePath.split('/').pop();
                 document.body.appendChild(a);
                 a.click();
+                window.URL.revokeObjectURL(url);
                 document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                
-                // Show success message
-                const fileName = filePath.split('/').pop();
-                console.log(`Downloaded: ${fileName}`);
-            } catch (error) {
-                alert('Download failed: ' + error.message);
+            } catch (e) {
+                alert(`Failed to download file: ${e.message}`);
             }
         }
 
-        // Search
-        document.getElementById('search-input').addEventListener('keypress', async (e) => {
-            if (e.key === 'Enter') {
-                const query = e.target.value.trim();
-                if (!query) return;
-                
-                const results = await hyperShare.searchFiles(query);
-                
-                const contentArea = document.getElementById('content-area');
-                contentArea.innerHTML = `
-                    <div class="view-header">
-                        <h1 class="view-title">Search Results</h1>
-                        <p class="view-description">Found ${results.length} files matching "${query}"</p>
-                    </div>
-                    
-                    <div class="file-list">
-                        ${results.map(file => `
-                            <div class="file-item" onclick="handleGlobalFileClick('${file.driveKey}', '${file.path}', '${file.name}', event)">
-                                <span class="file-icon">${getFileIcon(file)}</span>
-                                <span class="file-name">${file.name}</span>
-                                <span class="file-size">${formatBytes(file.size)}</span>
-                                <span class="file-meta">in ${file.driveKey.substring(0, 8)}...</span>
-                                <button class="btn btn-secondary" onclick="event.stopPropagation(); downloadFile('${file.driveKey}', '${file.path}')">
-                                    Download
-                                </button>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
-            }
-        });
-
-        // Stats
-        async function updateStats() {
-            if (!hyperShare.activeNetwork) return;
-            
-            try {
-                const stats = await hyperShare.getNetworkStats();
-                document.getElementById('peer-count').textContent = stats.peers;
-                document.getElementById('drive-count').textContent = stats.drives;
-            } catch (error) {
-                console.error('Failed to update stats:', error);
-            }
-        }
-
-        async function refreshDrives() {
-            const contentArea = document.getElementById('content-area');
-            contentArea.innerHTML = '<div class="loading"><div class="spinner"></div><p>Refreshing drives...</p></div>';
-            
-            try {
-                contentArea.innerHTML = await renderBrowseView();
-            } catch (error) {
-                contentArea.innerHTML = `
-                    <div class="error-state">
-                        <p style="color: var(--danger);">Error refreshing drives: ${error.message}</p>
-                        <button class="btn" onclick="refreshDrives()">Try Again</button>
-                    </div>
-                `;
-            }
-        }
-
-        // Utility functions
-        function formatBytes(bytes) {
-            if (bytes === 0) return '0 B';
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
             const k = 1024;
-            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
         }
 
-        function copyInvite(type) {
-            const code = document.getElementById(`${type}-invite-code`).textContent;
-            navigator.clipboard.writeText(code);
-            alert(`${type} invite copied to clipboard!`);
-        }
+        // Placeholder for other functions
+        function renderPublishView() { return 'Publish view coming soon'; }
+        async function renderMyDrivesView() { return 'My Drives view coming soon'; }
+        async function verifyDrive(driveKey) { alert(`Verifying ${driveKey}`); }
+        async function confirmUnpublish(driveKey) { if(confirm('Unpublish this drive?')) alert(`Unpublishing ${driveKey}`); }
 
-        function toggleFilters() {
-            alert('Filters coming soon!');
-        }
-
-        // Initialize on load
-        init();
+        // Start the app
+        document.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
 </html>
