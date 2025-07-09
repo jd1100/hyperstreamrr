@@ -19,7 +19,8 @@ export class HyperShareNetwork {
     this.storagePath = null;
     this.localStore = null;
     this.networksCore = null;
-    this.driveCache = null;
+    this.driveCache = new Map();
+    this.drivesListCache = null;
     this.cacheTimeout = null;
   }
 
@@ -77,9 +78,15 @@ export class HyperShareNetwork {
     const swarm = new Hyperswarm();
     Pear.teardown(() => swarm.destroy());
     swarm.on('connection', conn => {
+      console.log('[Swarm] Connection established');
       store.replicate(conn);
       autobase.replicate(conn);
+      conn.on('error', e => console.error('[Swarm] Connection error:', e));
     });
+    swarm.on('update', () => {
+      console.log('[Swarm] Swarm updated, topics:', Array.from(swarm.topics.keys()).map(t => t.toString('hex')));
+    });
+
     swarm.join(autobase.discoveryKey, { server: true, client: true });
     
     const adminKeypair = crypto.keyPair();
@@ -155,6 +162,11 @@ export class HyperShareNetwork {
     return { isAdmin, canWrite, message };
   }
 
+  getLocalKey() {
+    if (!this.activeNetwork) return null;
+    return b4a.toString(this.activeNetwork.autobase.local.key, 'hex');
+  }
+
   async joinNetwork(inviteCode) {
     try {
       const invite = JSON.parse(b4a.toString(b4a.from(inviteCode, 'base64')));
@@ -179,8 +191,13 @@ export class HyperShareNetwork {
       await autobase.view.ready();
 
       swarm.on('connection', conn => {
+        console.log('[Swarm] Connection established');
         store.replicate(conn);
         autobase.replicate(conn);
+        conn.on('error', e => console.error('[Swarm] Connection error:', e));
+      });
+      swarm.on('update', () => {
+        console.log('[Swarm] Swarm updated, topics:', Array.from(swarm.topics.keys()).map(t => t.toString('hex')));
       });
 
       swarm.join(autobase.discoveryKey, { server: true, client: true });
@@ -685,8 +702,8 @@ export class HyperShareNetwork {
   async browseDrives(filters = {}, force = false) {
     if (!this.activeNetwork) return [];
 
-    if (this.driveCache && !force && (this.cacheTimeout > Date.now())) {
-      return this.driveCache;
+    if (this.drivesListCache && !force && (this.cacheTimeout > Date.now())) {
+      return this.drivesListCache;
     }
 
     if (typeof window !== 'undefined') {
@@ -696,7 +713,12 @@ export class HyperShareNetwork {
     await this.activeNetwork.autobase.update();
     
     const db = this.activeNetwork.autobase.view;
-    if (!db) return [];
+    if (!db) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('loading-drives-end'));
+      }
+      return [];
+    }
     
     const drives = [];
     const prefix = '/drives/';
@@ -707,7 +729,7 @@ export class HyperShareNetwork {
       drives.push({ key: node.key.replace(prefix, ''), ...value });
     }
     
-    this.driveCache = drives;
+    this.drivesListCache = drives;
     this.cacheTimeout = Date.now() + 30000; // 30 second cache
 
     if (typeof window !== 'undefined') {
@@ -745,6 +767,10 @@ export class HyperShareNetwork {
 
   async browseFiles(driveKey, path = '/') {
     if (!this.activeNetwork) return [];
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('loading-files-start', { detail: { driveKey } }));
+    }
     
     const drive = await this.getDrive(driveKey);
     const files = [];
@@ -781,6 +807,10 @@ export class HyperShareNetwork {
       }
     } catch (error) {
       console.error('Error browsing files:', error);
+    } finally {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('loading-files-end', { detail: { driveKey } }));
+      }
     }
     
     return files;
@@ -796,6 +826,10 @@ export class HyperShareNetwork {
     const network = this.activeNetwork;
     if (!network) throw new Error('No active network');
 
+    if (this.driveCache.has(driveKey)) {
+        return this.driveCache.get(driveKey);
+    }
+
     const userDriveKey = b4a.toString(network.userDrive.key, 'hex');
     if (driveKey === userDriveKey) return network.userDrive;
 
@@ -803,15 +837,42 @@ export class HyperShareNetwork {
     const drive = new Hyperdrive(network.store, key);
     await drive.ready();
 
-    network.swarm.join(drive.discoveryKey, { server: false, client: true });
+    network.swarm.join(drive.discoveryKey, { server: true, client: true });
     
-    await this.waitForDriveSync(drive);
+    // Don't wait for full sync, just update to get the latest info
+    await drive.update();
+
+    this.driveCache.set(driveKey, drive);
+
     return drive;
   }
 
-  async waitForDriveSync(drive, timeout = 5000) {
+  async reannounceDrives() {
+    if (!this.activeNetwork) return;
+    console.log('[Swarm] Re-announcing all known drives...');
+
+    // Announce the main network topic
+    this.activeNetwork.swarm.join(this.activeNetwork.autobase.discoveryKey);
+
+    // Announce all cached drives
+    for (const drive of this.driveCache.values()) {
+      this.activeNetwork.swarm.join(drive.discoveryKey);
+    }
+    console.log('[Swarm] Re-announcement complete.');
+  }
+
+  async waitForDriveSync(drive, timeout = 3000) {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('drive-sync-start', { detail: { driveKey: b4a.toString(drive.key, 'hex') } }));
+    }
+
     await drive.update();
-    if (drive.core.length > 1) return;
+    if (drive.core.length > 1 && drive.core.contiguousLength === drive.core.length) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('drive-sync-end', { detail: { driveKey: b4a.toString(drive.key, 'hex') } }));
+      }
+      return;
+    }
 
     const promise = new Promise(resolve => {
       const timer = setTimeout(resolve, timeout);
@@ -821,6 +882,10 @@ export class HyperShareNetwork {
       });
     });
     await promise;
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('drive-sync-end', { detail: { driveKey: b4a.toString(drive.key, 'hex') } }));
+    }
   }
 
   async saveNetworkInfo(network) {
