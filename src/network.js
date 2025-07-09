@@ -555,8 +555,8 @@ export class HyperShareNetwork {
       peers: swarm.connections.size,
       connecting: swarm.connecting,
       topics: swarm.topics.size,
-      uploadedBytes: stats.totals.uploadedBytes,
-      downloadedBytes: stats.totals.downloadedBytes
+      uploadedBytes: stats?.totals?.uploadedBytes || 0,
+      downloadedBytes: stats?.totals?.downloadedBytes || 0
     };
   }
 
