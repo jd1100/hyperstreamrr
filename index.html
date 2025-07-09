@@ -4,1170 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HyperShare - P2P File Network</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        :root {
-            --bg-primary: #0d0d0d;
-            --bg-secondary: #1a1a1a;
-            --bg-tertiary: #252525;
-            --bg-hover: #2a2a2a;
-            --text-primary: #ffffff;
-            --text-secondary: #a0a0a0;
-            --text-muted: #666666;
-            --accent: #00ff88;
-            --accent-dim: #00cc66;
-            --accent-dark: #008844;
-            --danger: #ff4444;
-            --warning: #ffaa00;
-            --info: #00aaff;
-            --border: #333333;
-            --success: #00ff88;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        /* Welcome Screen */
-        #welcome-screen {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
-        }
-
-        .welcome-container {
-            max-width: 500px;
-            padding: 40px;
-            text-align: center;
-        }
-
-        .logo {
-            font-size: 48px;
-            font-weight: bold;
-            color: var(--accent);
-            margin-bottom: 20px;
-            text-shadow: 0 0 30px var(--accent);
-        }
-
-        .tagline {
-            color: var(--text-secondary);
-            margin-bottom: 40px;
-            font-size: 18px;
-        }
-
-        .welcome-options {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .option-card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 30px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .option-card:hover {
-            transform: translateY(-2px);
-            border-color: var(--accent);
-            box-shadow: 0 10px 30px rgba(0, 255, 136, 0.1);
-        }
-
-        .option-card h3 {
-            margin-bottom: 10px;
-            color: var(--text-primary);
-        }
-
-        .option-card p {
-            color: var(--text-secondary);
-            font-size: 14px;
-        }
-
-        /* Main App Layout */
-        #main-app {
-            display: none;
-            height: 100vh;
-            background: var(--bg-primary);
-        }
-
-        .app-layout {
-            display: grid;
-            grid-template-columns: 80px 240px 1fr;
-            height: 100vh;
-        }
-
-        /* Network Sidebar */
-        .networks-bar {
-            background: var(--bg-primary);
-            border-right: 1px solid var(--border);
-            padding: 12px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .network-icon {
-            width: 56px;
-            height: 56px;
-            border-radius: 12px;
-            background: var(--bg-tertiary);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            position: relative;
-            font-weight: 600;
-            font-size: 16px;
-        }
-
-        .network-icon:hover {
-            background: var(--bg-hover);
-            border-radius: 16px;
-        }
-
-        .network-icon.active {
-            background: var(--accent);
-            color: var(--bg-primary);
-        }
-
-        .network-icon.add {
-            border: 2px dashed var(--border);
-            background: transparent;
-            color: var(--text-secondary);
-        }
-
-        .network-divider {
-            width: 40px;
-            height: 2px;
-            background: var(--border);
-            margin: 8px 0;
-        }
-
-        /* Navigation Sidebar */
-        .nav-sidebar {
-            background: var(--bg-secondary);
-            border-right: 1px solid var(--border);
-            padding: 20px;
-        }
-
-        .network-info {
-            margin-bottom: 30px;
-        }
-
-        .network-name {
-            font-size: 20px;
-            font-weight: 600;
-            margin-bottom: 5px;
-        }
-
-        .network-role {
-            display: inline-block;
-            padding: 4px 8px;
-            background: var(--accent-dark);
-            color: var(--accent);
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-
-        .network-role.reader {
-            background: var(--bg-tertiary);
-            color: var(--text-secondary);
-        }
-
-        .nav-section {
-            margin-bottom: 25px;
-        }
-
-        .nav-section h4 {
-            color: var(--text-muted);
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            margin-bottom: 8px;
-        }
-
-        .nav-item {
-            padding: 10px 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            color: var(--text-secondary);
-        }
-
-        .nav-item:hover {
-            background: var(--bg-tertiary);
-            color: var(--text-primary);
-        }
-
-        .nav-item.active {
-            background: var(--bg-tertiary);
-            color: var(--accent);
-        }
-
-        /* Main Content Area */
-        .main-content {
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        .top-bar {
-            background: var(--bg-secondary);
-            border-bottom: 1px solid var(--border);
-            padding: 16px 24px;
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-
-        .search-bar {
-            flex: 1;
-            max-width: 600px;
-            position: relative;
-        }
-
-        .search-input {
-            width: 100%;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 10px 16px 10px 40px;
-            color: var(--text-primary);
-            font-size: 14px;
-            transition: all 0.2s ease;
-        }
-
-        .search-input:focus {
-            outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.1);
-        }
-
-        .search-icon {
-            position: absolute;
-            left: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-muted);
-        }
-
-        .filter-button {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 10px 16px;
-            color: var(--text-secondary);
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .filter-button:hover {
-            background: var(--bg-hover);
-            color: var(--text-primary);
-        }
-
-        .stats-bar {
-            margin-left: auto;
-            display: flex;
-            gap: 20px;
-            align-items: center;
-        }
-
-        .stat {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .stat-value {
-            font-size: 20px;
-            font-weight: 600;
-            color: var(--accent);
-        }
-
-        .stat-label {
-            font-size: 12px;
-            color: var(--text-muted);
-        }
-
-        /* Content Views */
-        .content-area {
-            flex: 1;
-            padding: 24px;
-            overflow-y: auto;
-        }
-
-        .view-header {
-            margin-bottom: 24px;
-        }
-
-        .view-title {
-            font-size: 28px;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-
-        .view-description {
-            color: var(--text-secondary);
-        }
-
-        /* Drive Grid */
-        .drives-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-            gap: 20px;
-        }
-
-        .drive-card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 24px;
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-
-        .drive-card:hover {
-            transform: translateY(-2px);
-            border-color: var(--accent);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-        }
-
-        .drive-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: start;
-            margin-bottom: 12px;
-        }
-
-        .drive-title {
-            font-size: 18px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .verified-badge {
-            background: var(--success);
-            color: var(--bg-primary);
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 600;
-        }
-
-        .drive-owner {
-            color: var(--text-secondary);
-            font-size: 14px;
-            margin-bottom: 8px;
-        }
-
-        .drive-description {
-            color: var(--text-secondary);
-            font-size: 14px;
-            margin-bottom: 16px;
-            display: -webkit-box;
-            line-clamp: 2;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-
-        .drive-stats {
-            display: flex;
-            gap: 16px;
-            margin-bottom: 16px;
-            font-size: 14px;
-        }
-
-        .drive-stat {
-            color: var(--text-secondary);
-        }
-
-        .drive-stat strong {
-            color: var(--text-primary);
-        }
-
-        .drive-tags {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            margin-bottom: 16px;
-        }
-
-        .tag {
-            background: var(--bg-tertiary);
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            color: var(--text-secondary);
-        }
-
-        .drive-actions {
-            display: flex;
-            gap: 8px;
-        }
-
-        .btn {
-            background: var(--accent);
-            color: var(--bg-primary);
-            border: none;
-            border-radius: 6px;
-            padding: 8px 16px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .btn:hover {
-            background: var(--accent-dim);
-            transform: translateY(-1px);
-        }
-
-        .btn-secondary {
-            background: var(--bg-tertiary);
-            color: var(--text-primary);
-        }
-
-        .btn-secondary:hover {
-            background: var(--bg-hover);
-        }
-
-        .btn-danger {
-            background: var(--danger);
-            color: var(--text-primary);
-        }
-
-        .btn-danger:hover {
-            background: #cc3333;
-        }
-
-        /* File Browser */
-        .file-browser {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            height: calc(100vh - 200px);
-        }
-
-        .browser-header {
-            background: var(--bg-tertiary);
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-shrink: 0;
-        }
-
-        .breadcrumb {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: var(--text-secondary);
-            flex: 1;
-        }
-
-        .breadcrumb-item {
-            cursor: pointer;
-            transition: color 0.2s ease;
-        }
-
-        .breadcrumb-item:hover {
-            color: var(--text-primary);
-        }
-
-        .browser-controls {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-left: auto;
-        }
-
-        .view-toggle {
-            display: flex;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            overflow: hidden;
-        }
-
-        .view-toggle button {
-            background: none;
-            border: none;
-            padding: 8px 12px;
-            color: var(--text-secondary);
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .view-toggle button.active {
-            background: var(--accent);
-            color: var(--bg-primary);
-        }
-
-        .view-toggle button:hover:not(.active) {
-            background: var(--bg-hover);
-            color: var(--text-primary);
-        }
-
-        .browser-toolbar {
-            background: var(--bg-secondary);
-            padding: 12px 20px;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-shrink: 0;
-        }
-
-        .file-search {
-            flex: 1;
-            max-width: 300px;
-            position: relative;
-        }
-
-        .file-search input {
-            width: 100%;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 8px 12px 8px 32px;
-            color: var(--text-primary);
-            font-size: 14px;
-        }
-
-        .file-search .search-icon {
-            position: absolute;
-            left: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-muted);
-        }
-
-        .sort-dropdown {
-            position: relative;
-        }
-
-        .sort-button {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 8px 12px;
-            color: var(--text-secondary);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .sort-button:hover {
-            background: var(--bg-hover);
-            color: var(--text-primary);
-        }
-
-        .sort-menu {
-            display: none;
-            position: absolute;
-            top: 100%;
-            right: 0;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 8px 0;
-            z-index: 100;
-            min-width: 150px;
-        }
-
-        .sort-menu.show {
-            display: block;
-        }
-
-        .sort-option {
-            padding: 8px 16px;
-            cursor: pointer;
-            transition: background 0.2s ease;
-        }
-
-        .sort-option:hover {
-            background: var(--bg-hover);
-        }
-
-        .sort-option.active {
-            background: var(--accent);
-            color: var(--bg-primary);
-        }
-
-        .file-list {
-            flex: 1;
-            overflow-y: auto;
-        }
-
-        .file-list.grid-view {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 16px;
-            padding: 20px;
-        }
-
-        .file-item {
-            display: grid;
-            grid-template-columns: 24px 1fr auto auto auto;
-            gap: 16px;
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--border);
-            align-items: center;
-            cursor: pointer;
-            transition: background 0.2s ease;
-        }
-
-        .file-item:hover {
-            background: var(--bg-tertiary);
-        }
-
-        .file-list.grid-view .file-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 16px;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            background: var(--bg-tertiary);
-            text-align: center;
-        }
-
-        .file-list.grid-view .file-item:hover {
-            background: var(--bg-hover);
-            border-color: var(--accent);
-        }
-
-        .file-icon {
-            color: var(--text-muted);
-            font-size: 20px;
-        }
-
-        .file-list.grid-view .file-icon {
-            font-size: 48px;
-            margin-bottom: 8px;
-        }
-
-        .file-name {
-            font-weight: 500;
-        }
-
-        .file-list.grid-view .file-name {
-            margin-bottom: 4px;
-            text-align: center;
-            word-break: break-word;
-        }
-
-        .file-size {
-            color: var(--text-secondary);
-            font-size: 14px;
-        }
-
-        .file-meta {
-            color: var(--text-muted);
-            font-size: 12px;
-        }
-
-        .file-list.grid-view .file-size,
-        .file-list.grid-view .file-meta {
-            font-size: 12px;
-        }
-
-        .file-preview {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.9);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-        }
-
-        .preview-content {
-            max-width: 90%;
-            max-height: 90%;
-            background: var(--bg-secondary);
-            border-radius: 12px;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .preview-header {
-            background: var(--bg-tertiary);
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .preview-title {
-            font-size: 18px;
-            font-weight: 600;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .preview-close {
-            background: none;
-            border: none;
-            color: var(--text-muted);
-            font-size: 24px;
-            cursor: pointer;
-            transition: color 0.2s ease;
-        }
-
-        .preview-close:hover {
-            color: var(--text-primary);
-        }
-
-        .preview-body {
-            padding: 20px;
-            max-height: 600px;
-            overflow-y: auto;
-        }
-
-        .preview-image {
-            max-width: 100%;
-            max-height: 500px;
-            object-fit: contain;
-        }
-
-        .preview-text {
-            font-family: monospace;
-            font-size: 14px;
-            line-height: 1.5;
-            white-space: pre-wrap;
-            color: var(--text-primary);
-        }
-
-        .preview-video {
-            width: 100%;
-            max-height: 500px;
-        }
-
-        .empty-folder {
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--text-secondary);
-        }
-
-        .empty-folder-icon {
-            font-size: 48px;
-            margin-bottom: 16px;
-            color: var(--text-muted);
-        }
-
-        /* Modals */
-        .modal-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.8);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 32px;
-            max-width: 500px;
-            width: 90%;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-
-        .modal-header {
-            margin-bottom: 24px;
-            position: relative;
-        }
-
-        .close-button {
-            position: absolute;
-            top: -16px;
-            right: -12px;
-            font-size: 28px;
-            font-weight: bold;
-            color: var(--text-muted);
-            cursor: pointer;
-            transition: color 0.2s ease;
-        }
-
-        .close-button:hover {
-            color: var(--text-primary);
-        }
-
-        .modal-title {
-            font-size: 24px;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-
-        .modal-subtitle {
-            color: var(--text-secondary);
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-        }
-
-        .form-input, .form-textarea {
-            width: 100%;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 10px 12px;
-            color: var(--text-primary);
-            font-size: 14px;
-            transition: all 0.2s ease;
-        }
-
-        .form-input:focus, .form-textarea:focus {
-            outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.1);
-        }
-
-        .form-textarea {
-            resize: vertical;
-            min-height: 100px;
-        }
-
-        .invite-code {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 16px;
-            margin-bottom: 16px;
-            word-break: break-all;
-            font-family: monospace;
-            font-size: 14px;
-            user-select: all;
-        }
-
-        .modal-actions {
-            display: flex;
-            gap: 12px;
-            justify-content: flex-end;
-            margin-top: 24px;
-        }
-
-        /* Upload Zone */
-        .upload-zone {
-            background: var(--bg-secondary);
-            border: 2px dashed var(--border);
-            border-radius: 12px;
-            padding: 60px;
-            text-align: center;
-            transition: all 0.3s ease;
-            cursor: pointer;
-            margin-bottom: 24px;
-        }
-
-        .upload-zone:hover {
-            border-color: var(--accent);
-            background: rgba(0, 255, 136, 0.05);
-        }
-
-        .upload-zone.dragging {
-            border-color: var(--accent);
-            background: rgba(0, 255, 136, 0.1);
-        }
-
-        .upload-icon {
-            font-size: 48px;
-            margin-bottom: 16px;
-            color: var(--text-muted);
-        }
-
-        .upload-progress {
-            margin-top: 16px;
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: var(--bg-tertiary);
-            border-radius: 4px;
-            overflow: hidden;
-        }
-
-        .progress-bar-inner {
-            width: 0%;
-            height: 100%;
-            background: var(--accent);
-            transition: width 0.2s ease;
-        }
-
-        .progress-text {
-            font-size: 12px;
-            color: var(--text-secondary);
-            margin-top: 4px;
-        }
-
-        /* Loading State */
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: var(--text-secondary);
-        }
-
-        .spinner {
-            display: inline-block;
-            width: 40px;
-            height: 40px;
-            border: 3px solid var(--bg-tertiary);
-            border-radius: 50%;
-            border-top-color: var(--accent);
-            animation: spin 1s ease-in-out infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* Scrollbar */
-        ::-webkit-scrollbar {
-            width: 10px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: var(--bg-secondary);
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: var(--bg-tertiary);
-            border-radius: 5px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: #444;
-        }
-
-        /* Peer indicator */
-        .peer-indicator {
-            position: absolute;
-            bottom: -2px;
-            right: -2px;
-            width: 16px;
-            height: 16px;
-            background: var(--success);
-            border: 3px solid var(--bg-primary);
-            border-radius: 50%;
-        }
-
-        .peer-indicator.offline {
-            background: var(--text-muted);
-        }
-
-        /* Network Info Styles */
-        .invite-section {
-            margin-bottom: 24px;
-        }
-
-        .invite-section h4 {
-            color: var(--text-primary);
-            margin-bottom: 8px;
-            font-size: 16px;
-            font-weight: 600;
-        }
-
-        .invite-section .description {
-            color: var(--text-secondary);
-            font-size: 14px;
-            margin-bottom: 12px;
-        }
-
-        .invite-code-container {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 12px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .invite-code {
-            flex: 1;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
-            color: var(--text-primary);
-            background: transparent;
-            border: none;
-            outline: none;
-            word-break: break-all;
-            cursor: text;
-        }
-
-        .copy-btn {
-            background: var(--accent-dark);
-            color: var(--accent);
-            border: none;
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: 600;
-            transition: all 0.2s ease;
-        }
-
-        .copy-btn:hover {
-            background: var(--accent);
-            color: var(--bg-primary);
-        }
-
-        .copy-btn.copied {
-            background: var(--success);
-            color: var(--bg-primary);
-        }
-
-        .network-details {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 24px;
-        }
-
-        .network-details h4 {
-            color: var(--text-primary);
-            margin-bottom: 12px;
-        }
-
-        .detail-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-
-        .detail-row:last-child {
-            margin-bottom: 0;
-        }
-
-        .detail-label {
-            color: var(--text-secondary);
-            font-size: 14px;
-        }
-
-        .detail-value {
-            color: var(--text-primary);
-            font-weight: 500;
-        }
-
-        /* Loading and Empty States */
-        .empty-state {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 400px;
-            text-align: center;
-        }
-
-        .loading-content {
-            max-width: 400px;
-        }
-
-        .loading-content h3 {
-            color: var(--text-primary);
-            margin-bottom: 8px;
-        }
-
-        .error-state {
-            text-align: center;
-            padding: 40px;
-        }
-
-        .loading-state {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 400px;
-            text-align: center;
-            padding: 40px;
-        }
-
-        .loading-state h3 {
-            color: var(--text-primary);
-            margin: 16px 0 8px 0;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            font-size: 14px;
-        }
-
-        .stat-item {
-            background: var(--bg-tertiary);
-            padding: 8px;
-            border-radius: 4px;
-        }
-
-        .stat-label {
-            color: var(--text-secondary);
-            font-size: 12px;
-            margin-bottom: 2px;
-        }
-
-        .stat-value {
-            font-weight: 600;
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
     <script type="module" src="app.js"></script>
 </head>
 <body>
+    <div class="title-bar">
+        <div class="title-bar-button close" id="close-btn"></div>
+        <div class="title-bar-button minimize" id="minimize-btn"></div>
+        <div class="title-bar-button maximize" id="maximize-btn"></div>
+    </div>
     <!-- Welcome Screen -->
     <div id="welcome-screen">
         <div class="welcome-container">
@@ -1238,7 +83,7 @@
                     <div class="nav-item" onclick="showView('manage-admins')">
                         <span>👥</span> Manage Admins
                     </div>
-                </div>
+                    </div>
 
                 <div class="nav-section">
                     <h4>Network Stats</h4>
@@ -1297,6 +142,7 @@
                 </div>
             </div>
         </div>
+        <video id="video-player" controls style="width: 100%; height: auto; max-height: 80vh;"></video>
     </div>
 
     <!-- Modals -->
@@ -1496,7 +342,7 @@
     </div>
 
     <!-- Video Player Modal -->
-    <div class="modal-overlay" id="video-player-modal" onclick="closeModalOnClick(event, 'video-player-modal')">
+    <div class="modal-overlay" id="video-player-modal" onclick="closeVideoPlayer()">
         <div class="modal" style="max-width: 90vw; max-height: 90vh; padding: 0;" onclick="event.stopPropagation()">
             <div class="modal-header" style="padding: 16px 24px;">
                 <h2 class="modal-title" id="video-player-title">Video Player</h2>
@@ -1687,7 +533,7 @@
                 if (modalId === 'video-player-modal') {
                     closeVideoPlayer();
                 } else {
-                    closeModal(modalId);
+                closeModal(modalId);
                 }
             }
         }
@@ -2040,13 +886,13 @@
                     <h1 class="view-title">My Published Drives</h1>
                     <p class="view-description">Manage the drives you've shared with the network</p>
                 </div>
-                
+
                 <div class="drives-grid" id="my-drives-grid">
                     ${drives.length === 0 
                         ? '<p style="color: var(--text-secondary);">You haven\'t published any drives yet.</p>'
                         : drives.map(drive => renderMyDriveCard(drive)).join('')
                     }
-                </div>
+                    </div>
             `;
         }
 
@@ -2057,7 +903,7 @@
                         <div class="drive-title">
                             ${drive.name || 'Unnamed Drive'}
                             ${drive.verified ? '<span class="verified-badge">VERIFIED</span>' : ''}
-                        </div>
+                    </div>
                     </div>
                     
                     <div class="drive-description">${drive.description || 'No description'}</div>
@@ -2065,7 +911,7 @@
                     <div class="drive-stats">
                         <span class="drive-stat"><strong>${formatBytes(drive.stats?.totalSize || 0)}</strong></span>
                         <span class="drive-stat"><strong>${drive.stats?.fileCount || 0}</strong> files</span>
-                    </div>
+                        </div>
                     
                     <div class="drive-tags">
                         ${(drive.tags || []).map(tag => `<span class="tag">${tag}</span>`).join('')}
@@ -2211,7 +1057,7 @@
                         Discovering peers and synchronizing drive contents.
                         This may take a moment for the first access.
                     </p>
-                </div>
+                    </div>
             `;
             
             try {
@@ -2232,8 +1078,8 @@
                         <div style="margin-top: 20px;">
                             <button class="btn" onclick="browseDrive('${driveKey}', '${driveName}', '${path}')">Retry</button>
                             <button class="btn btn-secondary" onclick="showView('browse')">Back to Drives</button>
-                        </div>
-                    </div>
+                                 </div>
+                                        </div>
                 `;
                 return;
             }
@@ -2251,7 +1097,7 @@
                         <button class="btn btn-secondary" onclick="showView('browse')">← Back to Drives</button>
                         <div class="breadcrumb">
                             ${breadcrumbs.map(b => `<span class="breadcrumb-item" onclick="browseDrive('${driveKey}', '${driveName}', '${b.path}')">${b.name}</span>`).join(' / ')}
-                        </div>
+                                        </div>
                         <div class="browser-controls">
                             ${isAdmin && isOwnDrive(driveKey) ? `
                                 <button class="btn btn-secondary" onclick="showAddFilesModal()">📁 Add Files</button>
@@ -2260,15 +1106,15 @@
                             <div class="view-toggle">
                                 <button class="${currentViewMode === 'list' ? 'active' : ''}" onclick="toggleViewMode('list')">☰</button>
                                 <button class="${currentViewMode === 'grid' ? 'active' : ''}" onclick="toggleViewMode('grid')">⊞</button>
-                            </div>
-                        </div>
-                    </div>
+                                    </div>
+                                    </div>
+                                    </div>
                     
                     <div class="browser-toolbar">
                         <div class="file-search">
                             <span class="search-icon">🔍</span>
                             <input type="text" placeholder="Search files..." value="${currentFileSearch}" oninput="filterFiles(this.value)">
-                        </div>
+                                </div>
                         <div class="sort-dropdown">
                             <button class="sort-button" onclick="toggleSortMenu()">
                                 <span>Sort: Name ↑</span>
@@ -2279,7 +1125,7 @@
                                 <div class="sort-option ${currentSortBy === 'size' ? 'active' : ''}" onclick="setSortBy('size')">Size</div>
                                 <div class="sort-option ${currentSortBy === 'modified' ? 'active' : ''}" onclick="setSortBy('modified')">Modified</div>
                                 <div class="sort-option ${currentSortBy === 'type' ? 'active' : ''}" onclick="setSortBy('type')">Type</div>
-                            </div>
+                    </div>
                         </div>
                     </div>
                     
@@ -2298,8 +1144,8 @@
                     <!-- Preview content goes here -->
                 </div>
             </div>
-                </div>
-            `;
+                    </div>
+                `;
             
             // Load files into the file list after the HTML is inserted
             setTimeout(() => {
@@ -2314,11 +1160,11 @@
             const filteredFiles = getFilteredAndSortedFiles();
             
             if (filteredFiles.length === 0) {
-                return `
+            return `
                     <div class="empty-folder">
                         <div class="empty-folder-icon">📁</div>
                         <p>This directory is empty or no files match your search.</p>
-                    </div>
+                        </div>
                 `;
             }
             
@@ -2365,9 +1211,9 @@
                                     Delete
                                 </button>
                             ` : ''}
-                        </div>
                     </div>
-                `;
+                </div>
+            `;
             }
         }
 
@@ -2567,8 +1413,8 @@
         async function addFilesToDrive() {
             const fileInput = document.getElementById('add-files-input');
             const files = Array.from(fileInput.files);
-            
-            if (files.length === 0) {
+
+                if (files.length === 0) {
                 alert('Please select files to add');
                 return;
             }
@@ -2840,6 +1686,17 @@
 
         // Initialize on load
         init();
+    </script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        if (typeof Pear !== 'undefined') {
+          const self = Pear.Window.self
+
+          document.getElementById('close-btn').addEventListener('click', () => self.close())
+          document.getElementById('minimize-btn').addEventListener('click', () => self.minimize())
+          document.getElementById('maximize-btn').addEventListener('click', () => self.maximize())
+        }
+      })
     </script>
 </body>
 </html>
