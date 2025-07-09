@@ -1,0 +1,60 @@
+{
+  "name": "hypershare",
+  "version": "1.0.0",
+  "description": "P2P file sharing with curated networks",
+  "main": "index.html",
+  "type": "module",
+  "pear": {
+    "name": "hypershare",
+    "type": "desktop",
+    "gui": {
+      "darwin": {
+        "backgroundColor": "#0d0d0d",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "resizable": true,
+        "center": true,
+        "closable": true
+      }
+    }
+  },
+  "scripts": {
+    "start": "pear run --dev .",
+    "dev": "pear run --dev .",
+    "build": "pear stage hypershare",
+    "release": "pear release hypershare",
+    "test": "node test-network.js"
+  },
+  "dependencies": {
+    "autobase": "^7.13.3",
+    "b4a": "^1.6.6",
+    "bare": "^1.20.1",
+    "corestore": "^7.4.5",
+    "debounceify": "^1.1.0",
+    "hyperbeam": "^3.1.0",
+    "hyperbee": "^2.24.2",
+    "hypercore": "^11.10.1",
+    "hypercore-crypto": "^3.6.1",
+    "hyperdb": "^4.14.0",
+    "hyperdht": "^6.20.5",
+    "hyperdrive": "^11.6.2",
+    "hyperswarm": "^4.11.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "pear-interface": "^1.1.0"
+  },
+  "keywords": [
+    "p2p",
+    "file-sharing",
+    "decentralized",
+    "holepunch",
+    "pear",
+    "hyperdrive",
+    "autobase"
+  ],
+  "author": "",
+  "license": "MIT"
+}

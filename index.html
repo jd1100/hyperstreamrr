@@ -1,0 +1,2783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HyperShare - P2P File Network</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0d0d0d;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #252525;
+            --bg-hover: #2a2a2a;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --text-muted: #666666;
+            --accent: #00ff88;
+            --accent-dim: #00cc66;
+            --accent-dark: #008844;
+            --danger: #ff4444;
+            --warning: #ffaa00;
+            --info: #00aaff;
+            --border: #333333;
+            --success: #00ff88;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Welcome Screen */
+        #welcome-screen {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+        }
+
+        .welcome-container {
+            max-width: 500px;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 48px;
+            font-weight: bold;
+            color: var(--accent);
+            margin-bottom: 20px;
+            text-shadow: 0 0 30px var(--accent);
+        }
+
+        .tagline {
+            color: var(--text-secondary);
+            margin-bottom: 40px;
+            font-size: 18px;
+        }
+
+        .welcome-options {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .option-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 30px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .option-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--accent);
+            box-shadow: 0 10px 30px rgba(0, 255, 136, 0.1);
+        }
+
+        .option-card h3 {
+            margin-bottom: 10px;
+            color: var(--text-primary);
+        }
+
+        .option-card p {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        /* Main App Layout */
+        #main-app {
+            display: none;
+            height: 100vh;
+            background: var(--bg-primary);
+        }
+
+        .app-layout {
+            display: grid;
+            grid-template-columns: 80px 240px 1fr;
+            height: 100vh;
+        }
+
+        /* Network Sidebar */
+        .networks-bar {
+            background: var(--bg-primary);
+            border-right: 1px solid var(--border);
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .network-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 12px;
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .network-icon:hover {
+            background: var(--bg-hover);
+            border-radius: 16px;
+        }
+
+        .network-icon.active {
+            background: var(--accent);
+            color: var(--bg-primary);
+        }
+
+        .network-icon.add {
+            border: 2px dashed var(--border);
+            background: transparent;
+            color: var(--text-secondary);
+        }
+
+        .network-divider {
+            width: 40px;
+            height: 2px;
+            background: var(--border);
+            margin: 8px 0;
+        }
+
+        /* Navigation Sidebar */
+        .nav-sidebar {
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            padding: 20px;
+        }
+
+        .network-info {
+            margin-bottom: 30px;
+        }
+
+        .network-name {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .network-role {
+            display: inline-block;
+            padding: 4px 8px;
+            background: var(--accent-dark);
+            color: var(--accent);
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .network-role.reader {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+        }
+
+        .nav-section {
+            margin-bottom: 25px;
+        }
+
+        .nav-section h4 {
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .nav-item {
+            padding: 10px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--text-secondary);
+        }
+
+        .nav-item:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .nav-item.active {
+            background: var(--bg-tertiary);
+            color: var(--accent);
+        }
+
+        /* Main Content Area */
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .top-bar {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .search-bar {
+            flex: 1;
+            max-width: 600px;
+            position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 16px 10px 40px;
+            color: var(--text-primary);
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.1);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+        }
+
+        .filter-button {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 16px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filter-button:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        .stats-bar {
+            margin-left: auto;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .stat {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        /* Content Views */
+        .content-area {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+        }
+
+        .view-header {
+            margin-bottom: 24px;
+        }
+
+        .view-title {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .view-description {
+            color: var(--text-secondary);
+        }
+
+        /* Drive Grid */
+        .drives-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .drive-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .drive-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--accent);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .drive-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 12px;
+        }
+
+        .drive-title {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .verified-badge {
+            background: var(--success);
+            color: var(--bg-primary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .drive-owner {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .drive-description {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom: 16px;
+            display: -webkit-box;
+            line-clamp: 2;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .drive-stats {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .drive-stat {
+            color: var(--text-secondary);
+        }
+
+        .drive-stat strong {
+            color: var(--text-primary);
+        }
+
+        .drive-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 16px;
+        }
+
+        .tag {
+            background: var(--bg-tertiary);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .drive-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            background: var(--accent);
+            color: var(--bg-primary);
+            border: none;
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn:hover {
+            background: var(--accent-dim);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-hover);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: var(--text-primary);
+        }
+
+        .btn-danger:hover {
+            background: #cc3333;
+        }
+
+        /* File Browser */
+        .file-browser {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 200px);
+        }
+
+        .browser-header {
+            background: var(--bg-tertiary);
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+            flex: 1;
+        }
+
+        .breadcrumb-item {
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+
+        .breadcrumb-item:hover {
+            color: var(--text-primary);
+        }
+
+        .browser-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: auto;
+        }
+
+        .view-toggle {
+            display: flex;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .view-toggle button {
+            background: none;
+            border: none;
+            padding: 8px 12px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .view-toggle button.active {
+            background: var(--accent);
+            color: var(--bg-primary);
+        }
+
+        .view-toggle button:hover:not(.active) {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        .browser-toolbar {
+            background: var(--bg-secondary);
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .file-search {
+            flex: 1;
+            max-width: 300px;
+            position: relative;
+        }
+
+        .file-search input {
+            width: 100%;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 12px 8px 32px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .file-search .search-icon {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+        }
+
+        .sort-dropdown {
+            position: relative;
+        }
+
+        .sort-button {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 12px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .sort-button:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        .sort-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 0;
+            z-index: 100;
+            min-width: 150px;
+        }
+
+        .sort-menu.show {
+            display: block;
+        }
+
+        .sort-option {
+            padding: 8px 16px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .sort-option:hover {
+            background: var(--bg-hover);
+        }
+
+        .sort-option.active {
+            background: var(--accent);
+            color: var(--bg-primary);
+        }
+
+        .file-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .file-list.grid-view {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 16px;
+            padding: 20px;
+        }
+
+        .file-item {
+            display: grid;
+            grid-template-columns: 24px 1fr auto auto auto;
+            gap: 16px;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .file-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .file-list.grid-view .file-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--bg-tertiary);
+            text-align: center;
+        }
+
+        .file-list.grid-view .file-item:hover {
+            background: var(--bg-hover);
+            border-color: var(--accent);
+        }
+
+        .file-icon {
+            color: var(--text-muted);
+            font-size: 20px;
+        }
+
+        .file-list.grid-view .file-icon {
+            font-size: 48px;
+            margin-bottom: 8px;
+        }
+
+        .file-name {
+            font-weight: 500;
+        }
+
+        .file-list.grid-view .file-name {
+            margin-bottom: 4px;
+            text-align: center;
+            word-break: break-word;
+        }
+
+        .file-size {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .file-meta {
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+
+        .file-list.grid-view .file-size,
+        .file-list.grid-view .file-meta {
+            font-size: 12px;
+        }
+
+        .file-preview {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .preview-content {
+            max-width: 90%;
+            max-height: 90%;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .preview-header {
+            background: var(--bg-tertiary);
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .preview-title {
+            font-size: 18px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .preview-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 24px;
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+
+        .preview-close:hover {
+            color: var(--text-primary);
+        }
+
+        .preview-body {
+            padding: 20px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .preview-image {
+            max-width: 100%;
+            max-height: 500px;
+            object-fit: contain;
+        }
+
+        .preview-text {
+            font-family: monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            color: var(--text-primary);
+        }
+
+        .preview-video {
+            width: 100%;
+            max-height: 500px;
+        }
+
+        .empty-folder {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-folder-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            color: var(--text-muted);
+        }
+
+        /* Modals */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 32px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            margin-bottom: 24px;
+            position: relative;
+        }
+
+        .close-button {
+            position: absolute;
+            top: -16px;
+            right: -12px;
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+
+        .close-button:hover {
+            color: var(--text-primary);
+        }
+
+        .modal-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .modal-subtitle {
+            color: var(--text-secondary);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .form-input, .form-textarea {
+            width: 100%;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px 12px;
+            color: var(--text-primary);
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus, .form-textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.1);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .invite-code {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 16px;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 14px;
+            user-select: all;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 24px;
+        }
+
+        /* Upload Zone */
+        .upload-zone {
+            background: var(--bg-secondary);
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 60px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            margin-bottom: 24px;
+        }
+
+        .upload-zone:hover {
+            border-color: var(--accent);
+            background: rgba(0, 255, 136, 0.05);
+        }
+
+        .upload-zone.dragging {
+            border-color: var(--accent);
+            background: rgba(0, 255, 136, 0.1);
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            color: var(--text-muted);
+        }
+
+        .upload-progress {
+            margin-top: 16px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-bar-inner {
+            width: 0%;
+            height: 100%;
+            background: var(--accent);
+            transition: width 0.2s ease;
+        }
+
+        .progress-text {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        /* Loading State */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--bg-tertiary);
+            border-radius: 50%;
+            border-top-color: var(--accent);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--bg-tertiary);
+            border-radius: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #444;
+        }
+
+        /* Peer indicator */
+        .peer-indicator {
+            position: absolute;
+            bottom: -2px;
+            right: -2px;
+            width: 16px;
+            height: 16px;
+            background: var(--success);
+            border: 3px solid var(--bg-primary);
+            border-radius: 50%;
+        }
+
+        .peer-indicator.offline {
+            background: var(--text-muted);
+        }
+
+        /* Network Info Styles */
+        .invite-section {
+            margin-bottom: 24px;
+        }
+
+        .invite-section h4 {
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .invite-section .description {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        .invite-code-container {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .invite-code {
+            flex: 1;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            color: var(--text-primary);
+            background: transparent;
+            border: none;
+            outline: none;
+            word-break: break-all;
+            cursor: text;
+        }
+
+        .copy-btn {
+            background: var(--accent-dark);
+            color: var(--accent);
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .copy-btn:hover {
+            background: var(--accent);
+            color: var(--bg-primary);
+        }
+
+        .copy-btn.copied {
+            background: var(--success);
+            color: var(--bg-primary);
+        }
+
+        .network-details {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+
+        .network-details h4 {
+            color: var(--text-primary);
+            margin-bottom: 12px;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .detail-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .detail-label {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .detail-value {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        /* Loading and Empty States */
+        .empty-state {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 400px;
+            text-align: center;
+        }
+
+        .loading-content {
+            max-width: 400px;
+        }
+
+        .loading-content h3 {
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .error-state {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 400px;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading-state h3 {
+            color: var(--text-primary);
+            margin: 16px 0 8px 0;
+        }
+    </style>
+    <script type="module" src="app.js"></script>
+</head>
+<body>
+    <!-- Welcome Screen -->
+    <div id="welcome-screen">
+        <div class="welcome-container">
+            <div class="logo">⚡ HyperShare</div>
+            <p class="tagline">Decentralized file sharing networks with curated content</p>
+            
+            <div class="welcome-options">
+                <div class="option-card" onclick="showCreateNetwork()">
+                    <h3>Create Network</h3>
+                    <p>Start a new file sharing network as the founder admin</p>
+                </div>
+                
+                <div class="option-card" onclick="showJoinNetwork()">
+                    <h3>Join Network</h3>
+                    <p>Connect to an existing network with an invite code</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="main-app">
+        <div class="app-layout">
+            <!-- Networks Bar -->
+            <div class="networks-bar">
+                <div id="network-list"></div>
+                <div class="network-divider"></div>
+                <div class="network-icon add" onclick="showNetworkSelector()">+</div>
+            </div>
+
+            <!-- Navigation Sidebar -->
+            <div class="nav-sidebar">
+                <div class="network-info">
+                    <div class="network-name" id="current-network-name">Loading...</div>
+                    <span class="network-role" id="user-role">Reader</span>
+                    <button class="btn btn-secondary" onclick="showNetworkInfoModal()" style="margin-top: 10px; width: 100%;">📋 Network Info</button>
+                    <button class="btn btn-secondary" id="leave-network-btn" onclick="confirmLeaveNetwork()" style="margin-top: 5px; width: 100%;">Leave Network</button>
+                </div>
+
+                <div class="nav-section">
+                    <h4>Browse</h4>
+                    <div class="nav-item active" onclick="showView('browse')">
+                        <span>🌐</span> All Drives
+                    </div>
+                    <div class="nav-item" onclick="showView('categories')">
+                        <span>📁</span> Categories
+                    </div>
+                    <div class="nav-item" onclick="showView('verified')">
+                        <span>✓</span> Verified Only
+                    </div>
+                </div>
+
+                <div class="nav-section">
+                    <h4>Personal</h4>
+                    <div class="nav-item" onclick="showView('downloads')">
+                        <span>⬇️</span> Downloads
+                    </div>
+                    <div class="nav-item" onclick="showView('my-drives')">
+                        <span>💾</span> My Drives
+                    </div>
+                </div>
+
+                <div class="nav-section" id="admin-section" style="display: none;">
+                    <h4>Admin</h4>
+                    <div class="nav-item" onclick="showView('publish')">
+                        <span>📤</span> Publish Drive
+                    </div>
+                    <div class="nav-item" onclick="showView('manage-admins')">
+                        <span>👥</span> Manage Admins
+                    </div>
+                    <div class="nav-item" onclick="showView('moderation')">
+                        <span>🛡️</span> Moderation
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="main-content">
+                <!-- Top Bar -->
+                <div class="top-bar">
+                    <div class="search-bar">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" class="search-input" placeholder="Search files across the network..." id="search-input">
+                    </div>
+                    
+                    <button class="filter-button" onclick="toggleFilters()">
+                        <span>⚙️</span> Filters
+                    </button>
+
+                    <div class="stats-bar">
+                        <div class="stat">
+                            <div class="stat-value" id="peer-count">0</div>
+                            <div class="stat-label">Peers</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value" id="drive-count">0</div>
+                            <div class="stat-label">Drives</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Content Area -->
+                <div class="content-area" id="content-area">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading network...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <!-- Add Files Modal -->
+    <div class="modal-overlay" id="add-files-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Add Files</h2>
+                <p class="modal-subtitle">Add files to the current directory</p>
+                <span class="close-button" onclick="closeModal('add-files-modal')">&times;</span>
+            </div>
+
+            <input type="file" id="add-files-input" multiple style="display: none;">
+            
+            <div class="upload-zone" onclick="document.getElementById('add-files-input').click()">
+                <div class="upload-icon">📁</div>
+                <h3>Click to select files</h3>
+            </div>
+
+            <div id="add-files-list"></div>
+
+            <div class="upload-progress" id="upload-progress-container" style="display: none;">
+                <div class="progress-bar">
+                    <div class="progress-bar-inner" id="upload-progress-bar"></div>
+                </div>
+                <div class="progress-text" id="upload-progress-text"></div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal('add-files-modal')">Cancel</button>
+                <button class="btn" onclick="addFilesToDrive()">Add Files</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Folder Modal -->
+    <div class="modal-overlay" id="create-folder-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Create Folder</h2>
+                <p class="modal-subtitle">Create a new folder in the current directory</p>
+                <span class="close-button" onclick="closeModal('create-folder-modal')">&times;</span>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Folder Name</label>
+                <input type="text" class="form-input" id="folder-name-input" placeholder="New Folder">
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal('create-folder-modal')">Cancel</button>
+                <button class="btn" onclick="createFolder()">Create Folder</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Network Modal -->
+    <div class="modal-overlay" id="create-network-modal" onclick="closeModalOnClick(event, 'create-network-modal')">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Create New Network</h2>
+                <p class="modal-subtitle">You'll be the founder admin of this network</p>
+                <span class="close-button" onclick="closeModal('create-network-modal')">&times;</span>
+            </div>
+
+            <div id="create-network-form">
+                <div class="form-group">
+                    <label class="form-label">Network Name</label>
+                    <input type="text" class="form-input" id="new-network-name" placeholder="My Awesome Network">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-textarea" id="new-network-description" placeholder="A network for sharing high quality content..."></textarea>
+                </div>
+
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="closeModal('create-network-modal')">Cancel</button>
+                    <button class="btn" id="create-network-btn" onclick="createNetwork()">Create Network</button>
+                </div>
+            </div>
+
+            <div id="network-created-view" style="display: none;">
+                <div class="modal-header">
+                    <h2 class="modal-title">Network Created! 🎉</h2>
+                    <p class="modal-subtitle">Share these invite codes with others</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Admin Invite (for trusted uploaders)</label>
+                    <div class="invite-code" id="admin-invite-code">Loading...</div>
+                    <button class="btn btn-secondary" onclick="copyInvite('admin')">Copy Admin Invite</button>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Reader Invite (for everyone else)</label>
+                    <div class="invite-code" id="reader-invite-code">Loading...</div>
+                    <button class="btn btn-secondary" onclick="copyInvite('reader')">Copy Reader Invite</button>
+                </div>
+
+                <div class="modal-actions">
+                    <button class="btn" onclick="closeModalAndEnterApp()">Enter Network</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Join Network Modal -->
+    <div class="modal-overlay" id="join-network-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Join Network</h2>
+                <p class="modal-subtitle">Enter the invite code to join an existing network</p>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Invite Code</label>
+                <textarea class="form-textarea" id="invite-code" placeholder="Paste invite code here..."></textarea>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal('join-network-modal')">Cancel</button>
+                <button class="btn" onclick="joinNetwork()">Join Network</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Network Created Modal -->
+    <div class="modal-overlay" id="network-created-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Network Created! 🎉</h2>
+                <p class="modal-subtitle">Share these invite codes with others</p>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Admin Invite (for trusted uploaders)</label>
+                <div class="invite-code" id="admin-invite-code">Loading...</div>
+                <button class="btn btn-secondary" onclick="copyInvite('admin')">Copy Admin Invite</button>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Reader Invite (for everyone else)</label>
+                <div class="invite-code" id="reader-invite-code">Loading...</div>
+                <button class="btn btn-secondary" onclick="copyInvite('reader')">Copy Reader Invite</button>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn" onclick="closeModalAndEnterApp()">Enter Network</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Files Modal -->
+    <div class="modal-overlay" id="upload-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Upload Files</h2>
+                <p class="modal-subtitle">Select files to add to your drive</p>
+            </div>
+
+            <input type="file" id="file-upload" multiple style="display: none;">
+            
+            <div class="upload-zone" onclick="document.getElementById('file-upload').click()">
+                <div class="upload-icon">📁</div>
+                <h3>Click to select files</h3>
+            </div>
+
+            <div id="upload-list"></div>
+
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal('upload-modal')">Cancel</button>
+                <button class="btn" onclick="uploadSelectedFiles()">Upload</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Network Info Modal -->
+    <div class="modal-overlay" id="network-info-modal" onclick="closeModalOnClick(event, 'network-info-modal')">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Network Information</h2>
+                <p class="modal-subtitle">Share these invite codes to invite others to this network</p>
+                <span class="close-button" onclick="closeModal('network-info-modal')">&times;</span>
+            </div>
+
+            <div class="modal-body">
+                <div id="network-info-content">
+                    <!-- Content will be populated by JavaScript -->
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal('network-info-modal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video Player Modal -->
+    <div class="modal-overlay" id="video-player-modal" onclick="closeModalOnClick(event, 'video-player-modal')">
+        <div class="modal" style="max-width: 90vw; max-height: 90vh; padding: 0;">
+            <div class="modal-header" style="padding: 16px 24px;">
+                <h2 class="modal-title" id="video-player-title">Video Player</h2>
+                <span class="close-button" onclick="closeVideoPlayer()">&times;</span>
+            </div>
+            <video id="video-player" controls style="width: 100%; height: auto; max-height: 80vh;"></video>
+        </div>
+    </div>
+
+    <script>
+        // Helper function
+        function getFileType(filename) {
+            if (!filename || typeof filename !== 'string') {
+                return 'application/octet-stream';
+            }
+            const ext = filename.split('.').pop().toLowerCase();
+            const types = {
+                mkv: 'video/x-matroska',
+                mp4: 'video/mp4',
+                avi: 'video/x-msvideo',
+                mp3: 'audio/mpeg',
+                flac: 'audio/flac',
+                pdf: 'application/pdf',
+                zip: 'application/zip',
+                txt: 'text/plain',
+                md: 'text/markdown',
+                json: 'application/json'
+            };
+            return types[ext] || 'application/octet-stream';
+        }
+
+        // Wait for HyperShare to be ready
+        let hyperShare = null;
+        let currentNetwork = null;
+        let networks = [];
+        let isAdmin = false;
+        let statsInterval = null;
+
+        // Initialize app - simplified version
+        async function init() {
+            const checkInterval = setInterval(async () => {
+                if (window.hyperShare && window.hyperShare.ready) {
+                    clearInterval(checkInterval);
+                    hyperShare = window.hyperShare;
+                    
+                    // Set up the event listener for UI updates
+                    window.addEventListener('role-updated', (event) => {
+                        console.log('Role update event received in UI:', event.detail);
+                        if (currentNetwork && event.detail.role) {
+                            currentNetwork.role = event.detail.role;
+                            // The key is to also get the new keypair
+                            if (hyperShare.activeNetwork) {
+                                currentNetwork.adminKeypair = hyperShare.activeNetwork.adminKeypair;
+                            }
+                            loadNetwork(currentNetwork);
+                            alert('Your role has been updated to Admin! You now have access to admin features.');
+                        }
+                    });
+                    
+                    await initializeApp();
+                }
+            }, 100);
+        }
+
+        async function initializeApp() {
+            console.log('Initializing app...');
+            networks = Array.from(hyperShare.networks.values());
+            
+            if (networks.length > 0) {
+                console.log(`Found ${networks.length} saved networks.`);
+                showMainApp();
+                await loadNetwork(networks[0]);
+            } else {
+                console.log('No saved networks found, showing welcome screen.');
+                document.getElementById('welcome-screen').style.display = 'flex';
+            }
+        }
+
+        // UI Functions
+        function showCreateNetwork() {
+            document.getElementById('create-network-modal').style.display = 'flex';
+        }
+
+        function showJoinNetwork() {
+            document.getElementById('join-network-modal').style.display = 'flex';
+        }
+
+        function showNetworkInfoModal() {
+            if (!currentNetwork || !hyperShare.activeNetwork) {
+                alert('No active network');
+                return;
+            }
+
+            const network = hyperShare.activeNetwork;
+            const isAdmin = network.role === 'admin';
+            
+            let content = `
+                <div class="network-details">
+                    <h4>Network Details</h4>
+                    <div class="detail-row">
+                        <span class="detail-label">Name:</span>
+                        <span class="detail-value">${network.name || 'Unnamed Network'}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Role:</span>
+                        <span class="detail-value">${network.role}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Connected Peers:</span>
+                        <span class="detail-value">${network.swarm.connections.size}</span>
+                    </div>
+                </div>
+            `;
+
+            if (isAdmin) {
+                const adminInvite = hyperShare.createInvite(network, 'admin');
+                const readerInvite = hyperShare.createInvite(network, 'reader');
+                
+                content += `
+                    <div class="invite-section">
+                        <h4>Admin Invite Code</h4>
+                        <div class="description">Share this code to grant admin permissions (cryptographically signed)</div>
+                        <div class="invite-code-container">
+                            <input type="text" class="invite-code" value="${adminInvite}" readonly>
+                            <button class="copy-btn" onclick="copyInviteCode(this, '${adminInvite}')">Copy</button>
+                        </div>
+                    </div>
+                    
+                    <div class="invite-section">
+                        <h4>Reader Invite Code</h4>
+                        <div class="description">Share this code to invite readers (view-only permissions)</div>
+                        <div class="invite-code-container">
+                            <input type="text" class="invite-code" value="${readerInvite}" readonly>
+                            <button class="copy-btn" onclick="copyInviteCode(this, '${readerInvite}')">Copy</button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                const readerInvite = hyperShare.createInvite(network, 'reader');
+                
+                content += `
+                    <div class="invite-section">
+                        <h4>Reader Invite Code</h4>
+                        <div class="description">Share this code to invite others as readers</div>
+                        <div class="invite-code-container">
+                            <input type="text" class="invite-code" value="${readerInvite}" readonly>
+                            <button class="copy-btn" onclick="copyInviteCode(this, '${readerInvite}')">Copy</button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            document.getElementById('network-info-content').innerHTML = content;
+            document.getElementById('network-info-modal').style.display = 'flex';
+        }
+
+        function copyInviteCode(button, code) {
+            navigator.clipboard.writeText(code).then(() => {
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                button.classList.add('copied');
+                
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.classList.remove('copied');
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                alert('Failed to copy invite code');
+            });
+        }
+
+        function showNetworkSelector() {
+            // Show network selector modal
+            if (document.getElementById('welcome-screen').style.display !== 'none') {
+                return;
+            }
+            document.getElementById('welcome-screen').style.display = 'flex';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        function closeModalOnClick(event, modalId) {
+            if (event.target.id === modalId) {
+                closeModal(modalId);
+            }
+        }
+
+        async function createNetwork() {
+            const name = document.getElementById('new-network-name').value;
+            const description = document.getElementById('new-network-description').value;
+            const createBtn = document.getElementById('create-network-btn');
+            
+            if (!name) {
+                alert('Please enter a network name');
+                return;
+            }
+
+            if (!window.hyperShare) {
+                alert('HyperShare is not initialized yet. Please wait and try again.');
+                console.error('window.hyperShare is not available');
+                return;
+            }
+
+            try {
+                createBtn.disabled = true;
+                createBtn.textContent = 'Creating...';
+
+                const result = await hyperShare.createNetwork(name, description);
+                
+                document.getElementById('admin-invite-code').textContent = result.adminInvite;
+                document.getElementById('reader-invite-code').textContent = result.readerInvite;
+
+                networks = Array.from(hyperShare.networks.values());
+                currentNetwork = result.network;
+                isAdmin = true;
+
+                // Switch views inside the modal
+                document.getElementById('create-network-form').style.display = 'none';
+                document.getElementById('network-created-view').style.display = 'block';
+
+            } catch (error) {
+                console.log(error)
+                alert('Failed to create network: ' + error.message);
+            } finally {
+                createBtn.disabled = false;
+                createBtn.textContent = 'Create Network';
+            }
+        }
+
+        async function joinNetwork() {
+            const inviteCode = document.getElementById('invite-code').value.trim();
+            const joinBtn = document.querySelector('#join-network-modal .btn:not(.btn-secondary)');
+            
+            if (!inviteCode) {
+                alert('Please enter an invite code');
+                return;
+            }
+
+            try {
+                // Show loading state
+                const originalText = joinBtn.textContent;
+                joinBtn.disabled = true;
+                joinBtn.textContent = 'Joining...';
+                
+                // Check if this is an admin invite for better UX
+                let isAdminInvite = false;
+                try {
+                    const inviteData = JSON.parse(atob(inviteCode));
+                    isAdminInvite = inviteData.role === 'admin';
+                } catch (e) {
+                    // Ignore parsing errors, will be handled by backend
+                }
+                
+                if (isAdminInvite) {
+                    joinBtn.textContent = 'Joining & syncing admin permissions...';
+                }
+                
+                const network = await hyperShare.joinNetwork(inviteCode);
+                
+                networks = Array.from(hyperShare.networks.values());
+                
+                closeModal('join-network-modal');
+                showMainApp();
+                await loadNetwork(network);
+                
+                // Reset button state
+                joinBtn.disabled = false;
+                joinBtn.textContent = originalText;
+                
+                // Show success message for admin joins
+                if (isAdminInvite) {
+                    setTimeout(() => {
+                        alert('Successfully joined as admin! If you don\'t see admin features immediately, try refreshing the drives view as permissions sync.');
+                    }, 1000);
+                }
+                
+            } catch (error) {
+                // Reset button state
+                joinBtn.disabled = false;
+                joinBtn.textContent = 'Join Network';
+                alert('Failed to join network: ' + error.message);
+            }
+        }
+
+        async function confirmLeaveNetwork() {
+            if (!currentNetwork) return;
+
+            if (confirm(`Are you sure you want to leave the network "${currentNetwork.name}"? This cannot be undone.`)) {
+                try {
+                    const nextNetwork = await hyperShare.leaveNetwork(currentNetwork.key);
+                    
+                    if (nextNetwork) {
+                        await loadNetwork(nextNetwork);
+                    } else {
+                        // No networks left, go to welcome screen
+                        document.getElementById('main-app').style.display = 'none';
+                        document.getElementById('welcome-screen').style.display = 'flex';
+                    }
+                    renderNetworkList();
+                } catch (error) {
+                    alert('Failed to leave network: ' + error.message);
+                }
+            }
+        }
+
+        function closeModalAndEnterApp() {
+            // Reset the create modal for next time
+            document.getElementById('create-network-form').style.display = 'block';
+            document.getElementById('network-created-view').style.display = 'none';
+            document.getElementById('new-network-name').value = '';
+            document.getElementById('new-network-description').value = '';
+
+            closeModal('create-network-modal');
+            showMainApp();
+            loadNetwork(currentNetwork);
+        }
+
+        function showMainApp() {
+            document.getElementById('welcome-screen').style.display = 'none';
+            document.getElementById('main-app').style.display = 'block';
+            renderNetworkList();
+        }
+
+        function renderNetworkList() {
+            const container = document.getElementById('network-list');
+            const networkArray = Array.from(hyperShare.networks.values());
+            
+            container.innerHTML = networkArray.map((net) => `
+                <div class="network-icon ${currentNetwork?.key === net.key ? 'active' : ''}" 
+                     onclick="loadNetwork('${net.key}')"
+                     title="${net.name}">
+                    ${net.name.substring(0, 2).toUpperCase()}
+                    ${currentNetwork?.key === net.key ? '<div class="peer-indicator"></div>' : ''}
+                </div>
+            `).join('');
+        }
+
+        async function loadNetwork(networkOrKey) {
+            const network = typeof networkOrKey === 'string' 
+                ? hyperShare.networks.get(networkOrKey) 
+                : networkOrKey;
+                
+            if (!network) {
+                console.error('Network not found');
+                return;
+            }
+            
+            currentNetwork = network;
+            hyperShare.activeNetwork = network;
+            isAdmin = network.role === 'admin';
+            
+            // Update UI
+            document.getElementById('current-network-name').textContent = network.name;
+            document.getElementById('user-role').textContent = network.role.toUpperCase();
+            document.getElementById('user-role').className = `network-role ${network.role}`;
+            
+            // Show/hide admin section
+            document.getElementById('admin-section').style.display = isAdmin ? 'block' : 'none';
+            
+            renderNetworkList();
+            
+            // Start stats updates
+            if (statsInterval) clearInterval(statsInterval);
+            statsInterval = setInterval(updateStats, 5000);
+            updateStats();
+            
+            showView('browse');
+        }
+
+        async function showView(view) {
+            // Deactivate all nav items
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+
+            // Activate the correct nav item by finding the one with the matching onclick attribute
+            const navItem = document.querySelector(`.nav-item[onclick="showView('${view}')"]`);
+            if (navItem) {
+                navItem.classList.add('active');
+            }
+
+            const contentArea = document.getElementById('content-area');
+            contentArea.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            
+            switch (view) {
+                case 'browse':
+                    contentArea.innerHTML = await renderBrowseView();
+                    break;
+                case 'publish':
+                    if (isAdmin) {
+                        contentArea.innerHTML = renderPublishView();
+                    }
+                    break;
+                case 'my-drives':
+                    contentArea.innerHTML = await renderMyDrivesView();
+                    break;
+                default:
+                    contentArea.innerHTML = `<div class="loading">View coming soon...</div>`;
+            }
+        }
+
+        async function renderBrowseView() {
+            try {
+                const drives = await hyperShare.browseDrives();
+                
+                return `
+                    <div class="view-header">
+                        <h1 class="view-title">Browse Drives</h1>
+                        <p class="view-description">Explore all published drives in the network</p>
+                        <button class="btn btn-secondary" onclick="refreshDrives()" style="margin-top: 10px;">🔄 Refresh</button>
+                    </div>
+                    
+                    <div class="drives-grid" id="drives-grid">
+                        ${drives.length === 0 
+                            ? `<div class="empty-state">
+                                 <div class="loading-content">
+                                     <div class="spinner" style="margin-bottom: 16px;"></div>
+                                     <h3>Discovering drives...</h3>
+                                     <p style="color: var(--text-secondary); margin-bottom: 16px;">
+                                         Connecting to peers and synchronizing the network database.
+                                         This may take a few moments for new networks.
+                                     </p>
+                                     <button class="btn btn-secondary" onclick="refreshDrives()">Check Again</button>
+                                 </div>
+                               </div>`
+                            : drives.map(drive => renderDriveCard(drive)).join('')
+                        }
+                    </div>
+                `;
+            } catch (error) {
+                return `
+                    <div class="view-header">
+                        <h1 class="view-title">Browse Drives</h1>
+                        <p class="view-description">Explore all published drives in the network</p>
+                    </div>
+                    
+                    <div class="error-state">
+                        <p style="color: var(--danger);">Error loading drives: ${error.message}</p>
+                        <button class="btn" onclick="refreshDrives()">Try Again</button>
+                    </div>
+                `;
+            }
+        }
+
+        function renderDriveCard(drive) {
+            const isOwner = isAdmin && drive.owner?.id === hyperShare.activeNetwork.autobase.local.key.toString('hex');
+
+            return `
+                <div class="drive-card" onclick="browseDrive('${drive.key}', '${drive.name}')">
+                    <div class="drive-header">
+                        <div class="drive-title">
+                            ${drive.name || 'Unnamed Drive'}
+                            ${drive.verified ? '<span class="verified-badge">VERIFIED</span>' : ''}
+                        </div>
+                    </div>
+                    
+                    <div class="drive-owner">by ${drive.owner?.name || 'Unknown'}</div>
+                    <div class="drive-description">${drive.description || 'No description'}</div>
+                    
+                    <div class="drive-stats">
+                        <span class="drive-stat"><strong>${formatBytes(drive.stats?.totalSize || 0)}</strong></span>
+                        <span class="drive-stat"><strong>${drive.stats?.fileCount || 0}</strong> files</span>
+                    </div>
+                    
+                    <div class="drive-tags">
+                        ${(drive.tags || []).map(tag => `<span class="tag">${tag}</span>`).join('')}
+                    </div>
+                    
+                    <div class="drive-actions">
+                        <button class="btn" onclick="event.stopPropagation(); browseDrive('${drive.key}', '${drive.name}')">Browse Files</button>
+                        ${isAdmin && !drive.verified ? `
+                            <button class="btn btn-secondary" onclick="event.stopPropagation(); verifyDrive('${drive.key}')">Verify</button>
+                        ` : ''}
+                        ${isOwner ? `
+                            <button class="btn btn-danger" onclick="event.stopPropagation(); confirmUnpublish('${drive.key}')">Unpublish</button>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderPublishView() {
+            return `
+                <div class="view-header">
+                    <h1 class="view-title">Publish Drive</h1>
+                    <p class="view-description">Share your files with the network</p>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Drive Name</label>
+                    <input type="text" class="form-input" id="drive-name" placeholder="My Awesome Collection">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-textarea" id="drive-description" placeholder="Describe your collection..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Tags (comma separated)</label>
+                    <input type="text" class="form-input" id="drive-tags" placeholder="movies, 1080p, action">
+                </div>
+                
+                <button class="btn" onclick="showUploadModal()">Upload Files</button>
+                
+                <div id="file-list" style="margin-top: 20px;"></div>
+                
+                <button class="btn" onclick="publishDrive()" style="margin-top: 20px;">Publish Drive</button>
+            `;
+        }
+
+        async function renderMyDrivesView() {
+            if (!isAdmin) return '<p>You do not have any published drives.</p>';
+
+            const drives = await hyperShare.getMyDrives();
+            
+            return `
+                <div class="view-header">
+                    <h1 class="view-title">My Published Drives</h1>
+                    <p class="view-description">Manage the drives you've shared with the network</p>
+                </div>
+                
+                <div class="drives-grid" id="my-drives-grid">
+                    ${drives.length === 0 
+                        ? '<p style="color: var(--text-secondary);">You haven\'t published any drives yet.</p>'
+                        : drives.map(drive => renderMyDriveCard(drive)).join('')
+                    }
+                </div>
+            `;
+        }
+
+        function renderMyDriveCard(drive) {
+            return `
+                <div class="drive-card">
+                    <div class="drive-header">
+                        <div class="drive-title">
+                            ${drive.name || 'Unnamed Drive'}
+                            ${drive.verified ? '<span class="verified-badge">VERIFIED</span>' : ''}
+                        </div>
+                    </div>
+                    
+                    <div class="drive-description">${drive.description || 'No description'}</div>
+                    
+                    <div class="drive-stats">
+                        <span class="drive-stat"><strong>${formatBytes(drive.stats?.totalSize || 0)}</strong></span>
+                        <span class="drive-stat"><strong>${drive.stats?.fileCount || 0}</strong> files</span>
+                    </div>
+                    
+                    <div class="drive-tags">
+                        ${(drive.tags || []).map(tag => `<span class="tag">${tag}</span>`).join('')}
+                    </div>
+                    
+                    <div class="drive-actions">
+                        <button class="btn" onclick="republishDrive('${drive.key}')">Republish</button>
+                        <button class="btn btn-danger" onclick="confirmUnpublish('${drive.key}')">Unpublish</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function confirmUnpublish(driveKey) {
+            if (!confirm('Are you sure you want to unpublish this drive? This will remove it from the network index for all users.')) {
+                return;
+            }
+
+            try {
+                await hyperShare.unpublishDrive(driveKey);
+                alert('Unpublish event sent! The drive will be removed shortly.');
+                // Refresh the current view after a short delay to allow the network to update
+                setTimeout(() => showView(document.querySelector('.nav-item.active').onclick.toString().match(/'([^']+)'/)[1]), 1000);
+            } catch (error) {
+                alert('Failed to unpublish drive: ' + error.message);
+            }
+        }
+
+        async function republishDrive(driveKey) {
+            const drives = await hyperShare.getMyDrives();
+            const drive = drives.find(d => d.key === driveKey);
+            if (!drive) {
+                alert('Drive not found!');
+                return;
+            }
+
+            // Pre-fill the publish form
+            document.getElementById('drive-name').value = drive.name;
+            document.getElementById('drive-description').value = drive.description;
+            document.getElementById('drive-tags').value = (drive.tags || []).join(', ');
+            
+            showView('publish');
+            alert('Drive information has been pre-filled. Make your changes and click "Publish Drive" to update.');
+        }
+
+        async function unpublishDrive(driveKey) {
+            if (!confirm('Are you sure you want to unpublish this drive? It will be removed for all users on the network.')) {
+                return;
+            }
+
+            try {
+                await hyperShare.unpublishDrive(driveKey);
+                alert('Drive unpublished successfully!');
+                showView('my-drives');
+            } catch (error) {
+                alert('Failed to unpublish drive: ' + error.message);
+            }
+        }
+
+        let currentViewMode = 'list';
+        let currentSortBy = 'name';
+        let currentSortOrder = 'asc';
+        let currentFileSearch = '';
+        let currentBrowseFiles = [];
+        let currentBrowseDriveKey = '';
+        let currentBrowseDriveName = '';
+        let currentBrowsePath = '/';
+
+        function closePreview() {
+            const previewContainer = document.getElementById('file-preview');
+            const previewBody = document.getElementById('preview-body');
+            previewBody.innerHTML = ''; // Clear content to stop video playback
+            previewContainer.style.display = 'none';
+        }
+
+        async function previewFile(driveKey, file) {
+            const previewContainer = document.getElementById('file-preview');
+            const previewBody = document.getElementById('preview-body');
+            const previewFilename = document.getElementById('preview-filename');
+            
+            previewFilename.textContent = file.name;
+            previewBody.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading preview...</p></div>';
+            previewContainer.style.display = 'flex';
+
+            try {
+                const fileType = getFileType(file.name);
+
+                if (fileType.startsWith('video/')) {
+                    const stream = await hyperShare.createFileDownloadStream(driveKey, file.path);
+                    const chunks = [];
+                    for await (const chunk of stream) {
+                        chunks.push(chunk);
+                    }
+                    const blob = new Blob(chunks, { type: fileType });
+                    const url = URL.createObjectURL(blob);
+                    previewBody.innerHTML = `<video class="preview-video" controls autoplay src="${url}"></video>`;
+                } else if (fileType.startsWith('image/')) {
+                    const blob = await hyperShare.downloadFile(driveKey, file.path);
+                    const url = URL.createObjectURL(new Blob([blob]));
+                    previewBody.innerHTML = `<img class="preview-image" src="${url}">`;
+                } else if (fileType.startsWith('text/')) {
+                    const content = await hyperShare.downloadFile(driveKey, file.path);
+                    previewBody.innerHTML = `<pre class="preview-text">${new TextDecoder().decode(content)}</pre>`;
+                } else {
+                    previewBody.innerHTML = `<div class="loading">Preview not available for this file type.</div>`;
+                }
+            } catch (error) {
+                console.error('Error previewing file:', error);
+                previewBody.innerHTML = `<div class="error-state">Error loading preview: ${error.message}</div>`;
+            }
+        }
+
+        async function browseDrive(driveKey, driveName, path = '/') {
+            if (!driveName) {
+                const drive = (await hyperShare.browseDrives()).find(d => d.key === driveKey);
+                driveName = drive ? drive.name : 'Drive';
+            }
+
+            currentBrowseDriveKey = driveKey;
+            currentBrowseDriveName = driveName;
+            currentBrowsePath = path;
+            
+            // Show loading state
+            const contentArea = document.getElementById('content-area');
+            contentArea.innerHTML = `
+                <div class="loading-state">
+                    <div class="spinner"></div>
+                    <h3>Connecting to drive "${driveName}"...</h3>
+                    <p style="color: var(--text-secondary);">
+                        Discovering peers and synchronizing drive contents.
+                        This may take a moment for the first access.
+                    </p>
+                </div>
+            `;
+            
+            try {
+                const files = await hyperShare.browseFiles(driveKey, path);
+                currentBrowseFiles = files;
+            } catch (error) {
+                console.error('Error loading files:', error);
+                contentArea.innerHTML = `
+                    <div class="error-state">
+                        <h3>Failed to access drive</h3>
+                        <p style="color: var(--danger);">Error: ${error.message}</p>
+                        <p style="color: var(--text-secondary);">
+                            This could happen if:
+                            • No peers are currently sharing this drive
+                            • Network connectivity issues
+                            • Drive is no longer available
+                        </p>
+                        <div style="margin-top: 20px;">
+                            <button class="btn" onclick="browseDrive('${driveKey}', '${driveName}', '${path}')">Retry</button>
+                            <button class="btn btn-secondary" onclick="showView('browse')">Back to Drives</button>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            
+            const pathParts = path.split('/').filter(p => p);
+            const breadcrumbs = [{ name: driveName, path: '/' }];
+            let currentPath = '/';
+            for (const part of pathParts) {
+                currentPath += part + '/';
+                breadcrumbs.push({ name: part, path: currentPath });
+            }
+            contentArea.innerHTML = `
+                <div class="file-browser">
+                    <div class="browser-header">
+                        <button class="btn btn-secondary" onclick="showView('browse')">← Back to Drives</button>
+                        <div class="breadcrumb">
+                            ${breadcrumbs.map(b => `<span class="breadcrumb-item" onclick="browseDrive('${driveKey}', '${driveName}', '${b.path}')">${b.name}</span>`).join(' / ')}
+                        </div>
+                        <div class="browser-controls">
+                            ${isAdmin && isOwnDrive(driveKey) ? `
+                                <button class="btn btn-secondary" onclick="showAddFilesModal()">📁 Add Files</button>
+                                <button class="btn btn-secondary" onclick="showCreateFolderModal()">📁 New Folder</button>
+                            ` : ''}
+                            <div class="view-toggle">
+                                <button class="${currentViewMode === 'list' ? 'active' : ''}" onclick="toggleViewMode('list')">☰</button>
+                                <button class="${currentViewMode === 'grid' ? 'active' : ''}" onclick="toggleViewMode('grid')">⊞</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="browser-toolbar">
+                        <div class="file-search">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" placeholder="Search files..." value="${currentFileSearch}" oninput="filterFiles(this.value)">
+                        </div>
+                        <div class="sort-dropdown">
+                            <button class="sort-button" onclick="toggleSortMenu()">
+                                <span>Sort: Name ↑</span>
+                                <span>▼</span>
+                            </button>
+                            <div class="sort-menu" id="sort-menu">
+                                <div class="sort-option ${currentSortBy === 'name' ? 'active' : ''}" onclick="setSortBy('name')">Name</div>
+                                <div class="sort-option ${currentSortBy === 'size' ? 'active' : ''}" onclick="setSortBy('size')">Size</div>
+                                <div class="sort-option ${currentSortBy === 'modified' ? 'active' : ''}" onclick="setSortBy('modified')">Modified</div>
+                                <div class="sort-option ${currentSortBy === 'type' ? 'active' : ''}" onclick="setSortBy('type')">Type</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="file-list ${currentViewMode === 'grid' ? 'grid-view' : ''}" id="file-list">
+                        <!-- Files will be loaded here -->
+                    </div>
+                </div>
+                
+                <div class="file-preview" id="file-preview" onclick="closePreview(event)">
+                    <div class="preview-content">
+            <div class="preview-header">
+                <h3 class="preview-title" id="preview-filename"></h3>
+                <button class="preview-close" onclick="closePreview()">&times;</button>
+            </div>
+            <div class="preview-body" id="preview-body">
+                <!-- Preview content goes here -->
+            </div>
+        </div>
+                </div>
+            `;
+            
+            // Load files into the file list after the HTML is inserted
+            setTimeout(() => {
+                const fileList = document.getElementById('file-list');
+                if (fileList) {
+                    fileList.innerHTML = renderFileList();
+                }
+            }, 0);
+        }
+
+        function renderFileList() {
+            const filteredFiles = getFilteredAndSortedFiles();
+            
+            if (filteredFiles.length === 0) {
+                return `
+                    <div class="empty-folder">
+                        <div class="empty-folder-icon">📁</div>
+                        <p>This directory is empty or no files match your search.</p>
+                    </div>
+                `;
+            }
+            
+            return filteredFiles.map(file => renderFileItem(file)).join('');
+        }
+
+        function renderFileItem(file) {
+            const icon = getFileIcon(file);
+            const action = file.isDirectory
+                ? `onclick="browseDrive('${currentBrowseDriveKey}', '${currentBrowseDriveName}', '${file.path}')"`
+                : `onclick="handleFileClick('${file.path}', '${file.name}', event)"`;
+
+            const canEdit = isAdmin && isOwnDrive(currentBrowseDriveKey);
+
+            if (currentViewMode === 'grid') {
+                return `
+                    <div class="file-item" ${action}>
+                        <div class="file-icon">${icon}</div>
+                        <div class="file-name">${file.name}</div>
+                        <div class="file-size">${file.isDirectory ? '-' : formatBytes(file.size)}</div>
+                        <div class="file-meta">${new Date(file.mtime).toLocaleDateString()}</div>
+                        ${canEdit ? `
+                            <button class="btn btn-danger" onclick="event.stopPropagation(); confirmDeleteFile('${file.path}', '${file.name}', ${file.isDirectory})" style="font-size: 12px; padding: 4px 8px;">
+                                🗑️
+                            </button>
+                        ` : ''}
+                    </div>
+                `;
+            } else {
+                return `
+                    <div class="file-item" ${action}>
+                        <span class="file-icon">${icon}</span>
+                        <span class="file-name">${file.name}</span>
+                        <span class="file-size">${file.isDirectory ? '-' : formatBytes(file.size)}</span>
+                        <span class="file-meta">${new Date(file.mtime).toLocaleDateString()}</span>
+                        <div class="file-actions">
+                            ${!file.isDirectory ? `
+                                <button class="btn btn-secondary" onclick="event.stopPropagation(); downloadFile('${currentBrowseDriveKey}', '${file.path}')">
+                                    Download
+                                </button>
+                            ` : ''}
+                            ${canEdit ? `
+                                <button class="btn btn-danger" onclick="event.stopPropagation(); confirmDeleteFile('${file.path}', '${file.name}', ${file.isDirectory})">
+                                    Delete
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function getFileIcon(file) {
+            if (file.isDirectory) return '📁';
+            
+            const ext = file.name.split('.').pop()?.toLowerCase();
+            const iconMap = {
+                // Images
+                'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️', 'bmp': '🖼️', 'svg': '🖼️',
+                // Videos
+                'mp4': '🎬', 'avi': '🎬', 'mkv': '🎬', 'mov': '🎬', 'wmv': '🎬', 'flv': '🎬',
+                // Audio
+                'mp3': '🎵', 'wav': '🎵', 'flac': '🎵', 'aac': '🎵', 'ogg': '🎵',
+                // Documents
+                'pdf': '📄', 'doc': '📄', 'docx': '📄', 'txt': '📄', 'rtf': '📄',
+                // Archives
+                'zip': '📦', 'rar': '📦', '7z': '📦', 'tar': '📦', 'gz': '📦',
+                // Code
+                'js': '📜', 'html': '📜', 'css': '📜', 'json': '📜', 'xml': '📜',
+                // Executables
+                'exe': '⚙️', 'msi': '⚙️', 'dmg': '⚙️', 'pkg': '⚙️'
+            };
+            
+            return iconMap[ext] || '📄';
+        }
+
+        function getFilteredAndSortedFiles() {
+            let files = [...currentBrowseFiles];
+            
+            // Filter by search term
+            if (currentFileSearch) {
+                files = files.filter(file => 
+                    file.name.toLowerCase().includes(currentFileSearch.toLowerCase())
+                );
+            }
+            
+            // Sort files
+            files.sort((a, b) => {
+                // Directories first
+                if (a.isDirectory && !b.isDirectory) return -1;
+                if (!a.isDirectory && b.isDirectory) return 1;
+                
+                let aVal, bVal;
+                switch (currentSortBy) {
+                    case 'name':
+                        aVal = a.name.toLowerCase();
+                        bVal = b.name.toLowerCase();
+                        break;
+                    case 'size':
+                        aVal = a.size || 0;
+                        bVal = b.size || 0;
+                        break;
+                    case 'modified':
+                        aVal = new Date(a.mtime).getTime();
+                        bVal = new Date(b.mtime).getTime();
+                        break;
+                    case 'type':
+                        aVal = a.name.split('.').pop()?.toLowerCase() || '';
+                        bVal = b.name.split('.').pop()?.toLowerCase() || '';
+                        break;
+                    default:
+                        aVal = a.name.toLowerCase();
+                        bVal = b.name.toLowerCase();
+                }
+                
+                if (aVal < bVal) return currentSortOrder === 'asc' ? -1 : 1;
+                if (aVal > bVal) return currentSortOrder === 'asc' ? 1 : -1;
+                return 0;
+            });
+            
+            return files;
+        }
+
+        function toggleViewMode(mode) {
+            currentViewMode = mode;
+            const fileList = document.getElementById('file-list');
+            if (fileList) {
+                fileList.className = `file-list ${mode === 'grid' ? 'grid-view' : ''}`;
+                fileList.innerHTML = renderFileList();
+            }
+            
+            // Update button states
+            document.querySelectorAll('.view-toggle button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`.view-toggle button[onclick="toggleViewMode('${mode}')"]`).classList.add('active');
+        }
+
+        function filterFiles(searchTerm) {
+            currentFileSearch = searchTerm;
+            const fileList = document.getElementById('file-list');
+            if (fileList) {
+                fileList.innerHTML = renderFileList();
+            }
+        }
+
+        function toggleSortMenu() {
+            const menu = document.getElementById('sort-menu');
+            menu.classList.toggle('show');
+        }
+
+        function setSortBy(sortBy) {
+            if (currentSortBy === sortBy) {
+                currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortBy = sortBy;
+                currentSortOrder = 'asc';
+            }
+            
+            const fileList = document.getElementById('file-list');
+            if (fileList) {
+                fileList.innerHTML = renderFileList();
+            }
+            
+            // Update sort button text
+            const sortButton = document.querySelector('.sort-button span');
+            if (sortButton) {
+                sortButton.textContent = `Sort: ${getSortLabel()}`;
+            }
+            
+            // Update active state
+            document.querySelectorAll('.sort-option').forEach(option => {
+                option.classList.remove('active');
+            });
+            const activeOption = document.querySelector(`[onclick="setSortBy('${sortBy}')"]`);
+            if (activeOption) {
+                activeOption.classList.add('active');
+            }
+            
+            // Close menu
+            document.getElementById('sort-menu').classList.remove('show');
+        }
+
+        function getSortLabel() {
+            const labels = {
+                'name': 'Name',
+                'size': 'Size',
+                'modified': 'Modified',
+                'type': 'Type'
+            };
+            return labels[currentSortBy] + (currentSortOrder === 'desc' ? ' ↓' : ' ↑');
+        }
+
+        function handleFileClick(filePath, fileName, event) {
+            if (event.ctrlKey || event.metaKey) {
+                // Ctrl/Cmd + click to download
+                downloadFile(currentBrowseDriveKey, filePath);
+            } else {
+                // Regular click to preview
+                previewFile(currentBrowseDriveKey, { name: fileName, path: filePath });
+            }
+        }
+
+        async function previewFile(driveKey, file) {
+            const previewContainer = document.getElementById('file-preview');
+            const previewBody = document.getElementById('preview-body');
+            
+            document.getElementById('preview-filename').textContent = file.name;
+            previewBody.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading preview...</p></div>';
+            previewContainer.style.display = 'flex';
+
+            try {
+                const fileType = getFileType(file.name);
+
+                if (fileType.startsWith('video/')) {
+                    const stream = await hyperShare.createFileDownloadStream(driveKey, file.path);
+                    const chunks = [];
+                    for await (const chunk of stream) {
+                        chunks.push(chunk);
+                    }
+                    const blob = new Blob(chunks, { type: fileType });
+                    const url = URL.createObjectURL(blob);
+                    previewBody.innerHTML = `<video class="preview-video" controls autoplay src="${url}"></video>`;
+                } else if (fileType.startsWith('image/')) {
+                    const blob = await hyperShare.downloadFile(driveKey, file.path);
+                    const url = URL.createObjectURL(new Blob([blob]));
+                    previewBody.innerHTML = `<img class="preview-image" src="${url}">`;
+                } else if (fileType.startsWith('text/')) {
+                    const content = await hyperShare.downloadFile(driveKey, file.path);
+                    previewBody.innerHTML = `<pre class="preview-text">${new TextDecoder().decode(content)}</pre>`;
+                } else {
+                    previewBody.innerHTML = `<div class="loading">Preview not available for this file type.</div>`;
+                }
+            } catch (error) {
+                console.error('Error previewing file:', error);
+                previewBody.innerHTML = `<div class="error-state">Error loading preview: ${error.message}</div>`;
+            }
+        }
+
+        function closePreview(event) {
+            const preview = document.getElementById('file-preview');
+            if (event && event.target !== preview) return;
+            preview.style.display = 'none';
+        }
+
+        async function handleGlobalFileClick(driveKey, filePath, fileName, event) {
+            if (event.ctrlKey || event.metaKey) {
+                downloadFile(driveKey, filePath);
+            } else {
+                // Set temporary browse context for preview
+                const oldDriveKey = currentBrowseDriveKey;
+                currentBrowseDriveKey = driveKey;
+                await previewFile(driveKey, { name: fileName, path: filePath });
+                currentBrowseDriveKey = oldDriveKey;
+            }
+        }
+
+        function isOwnDrive(driveKey) {
+            if (!currentNetwork || !hyperShare.activeNetwork) return false;
+            const userDriveKey = hyperShare.activeNetwork.userDrive?.key;
+            if (!userDriveKey) return false;
+            // Convert buffer to hex string for comparison
+            const userDriveKeyHex = Array.from(userDriveKey).map(b => b.toString(16).padStart(2, '0')).join('');
+            return userDriveKeyHex === driveKey;
+        }
+
+        function showAddFilesModal() {
+            document.getElementById('add-files-modal').style.display = 'flex';
+        }
+
+        function showCreateFolderModal() {
+            document.getElementById('create-folder-modal').style.display = 'flex';
+        }
+
+        async function confirmDeleteFile(filePath, fileName, isDirectory) {
+            const itemType = isDirectory ? 'folder' : 'file';
+            if (confirm(`Are you sure you want to delete this ${itemType}: ${fileName}?`)) {
+                try {
+                    await hyperShare.deleteFile(currentBrowseDriveKey, filePath);
+                    // Refresh the file browser
+                    await browseDrive(currentBrowseDriveKey, currentBrowseDriveName, currentBrowsePath);
+                } catch (error) {
+                    alert('Failed to delete ' + itemType + ': ' + error.message);
+                }
+            }
+        }
+
+        async function addFilesToDrive() {
+            const fileInput = document.getElementById('add-files-input');
+            const files = Array.from(fileInput.files);
+            
+            if (files.length === 0) {
+                alert('Please select files to add');
+                return;
+            }
+            
+            try {
+                for (const file of files) {
+                    const content = await file.arrayBuffer();
+                    const filePath = currentBrowsePath === '/' ? `/${file.name}` : `${currentBrowsePath}/${file.name}`;
+                    await hyperShare.uploadFile(filePath, Buffer.from(content));
+                }
+                
+                closeModal('add-files-modal');
+                alert(`Added ${files.length} files`);
+                
+                // Refresh the file browser
+                await browseDrive(currentBrowseDriveKey, currentBrowseDriveName, currentBrowsePath);
+            } catch (error) {
+                alert('Failed to add files: ' + error.message);
+            }
+        }
+
+        async function createFolder() {
+            const folderName = document.getElementById('folder-name-input').value.trim();
+            
+            if (!folderName) {
+                alert('Please enter a folder name');
+                return;
+            }
+            
+            try {
+                const folderPath = currentBrowsePath === '/' ? `/${folderName}` : `${currentBrowsePath}/${folderName}`;
+                // Create an empty file in the folder to create the directory structure
+                await hyperShare.uploadFile(`${folderPath}/.gitkeep`, Buffer.from(''));
+                
+                closeModal('create-folder-modal');
+                document.getElementById('folder-name-input').value = '';
+                
+                // Refresh the file browser
+                await browseDrive(currentBrowseDriveKey, currentBrowseDriveName, currentBrowsePath);
+            } catch (error) {
+                alert('Failed to create folder: ' + error.message);
+            }
+        }
+
+        // Close sort menu when clicking outside
+        document.addEventListener('click', function(event) {
+            const sortDropdown = document.querySelector('.sort-dropdown');
+            if (sortDropdown && !sortDropdown.contains(event.target)) {
+                document.getElementById('sort-menu')?.classList.remove('show');
+            }
+        });
+
+        // File operations
+        function showUploadModal() {
+            document.getElementById('upload-modal').style.display = 'flex';
+        }
+
+        document.getElementById('file-upload').addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            const listEl = document.getElementById('upload-list');
+            
+            listEl.innerHTML = `
+                <h4>Selected Files:</h4>
+                ${files.map(f => `<div>${f.name} - ${formatBytes(f.size)}</div>`).join('')}
+            `;
+        });
+
+        // Add files input listener
+        document.addEventListener('DOMContentLoaded', function() {
+            const addFilesInput = document.getElementById('add-files-input');
+            if (addFilesInput) {
+                addFilesInput.addEventListener('change', (e) => {
+                    const files = Array.from(e.target.files);
+                    const listEl = document.getElementById('add-files-list');
+                    
+                    listEl.innerHTML = `
+                        <h4>Selected Files:</h4>
+                        ${files.map(f => `<div>${f.name} - ${formatBytes(f.size)}</div>`).join('')}
+                    `;
+                });
+            }
+        });
+
+        async function uploadSelectedFiles() {
+            const fileInput = document.getElementById('file-upload');
+            const files = Array.from(fileInput.files);
+            
+            if (files.length === 0) {
+                alert('Please select files to upload');
+                return;
+            }
+            
+            for (const file of files) {
+                const content = await file.arrayBuffer();
+                await hyperShare.uploadFile(`/${file.name}`, Buffer.from(content));
+            }
+            
+            closeModal('upload-modal');
+            alert(`Uploaded ${files.length} files`);
+        }
+
+        async function publishDrive() {
+            const name = document.getElementById('drive-name').value;
+            const description = document.getElementById('drive-description').value;
+            const tags = document.getElementById('drive-tags').value.split(',').map(t => t.trim()).filter(t => t);
+            
+            if (!name) {
+                alert('Please enter a drive name');
+                return;
+            }
+            
+            try {
+                await hyperShare.publishDrive({
+                    name,
+                    description,
+                    tags,
+                    categories: []
+                });
+                
+                alert('Drive published successfully!');
+                showView('browse');
+            } catch (error) {
+                alert('Failed to publish drive: ' + error.message);
+            }
+        }
+
+        async function verifyDrive(driveKey) {
+            try {
+                await hyperShare.verifyDrive(driveKey);
+                alert('Drive verified!');
+                showView('browse');
+            } catch (error) {
+                alert('Failed to verify drive: ' + error.message);
+            }
+        }
+
+        async function downloadFile(driveKey, filePath) {
+            try {
+                const content = await hyperShare.downloadFile(driveKey, filePath);
+                
+                // Create download link
+                const blob = new Blob([content]);
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filePath.split('/').pop();
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                // Show success message
+                const fileName = filePath.split('/').pop();
+                console.log(`Downloaded: ${fileName}`);
+            } catch (error) {
+                alert('Download failed: ' + error.message);
+            }
+        }
+
+        // Search
+        document.getElementById('search-input').addEventListener('keypress', async (e) => {
+            if (e.key === 'Enter') {
+                const query = e.target.value.trim();
+                if (!query) return;
+                
+                const results = await hyperShare.searchFiles(query);
+                
+                const contentArea = document.getElementById('content-area');
+                contentArea.innerHTML = `
+                    <div class="view-header">
+                        <h1 class="view-title">Search Results</h1>
+                        <p class="view-description">Found ${results.length} files matching "${query}"</p>
+                    </div>
+                    
+                    <div class="file-list">
+                        ${results.map(file => `
+                            <div class="file-item" onclick="handleGlobalFileClick('${file.driveKey}', '${file.path}', '${file.name}', event)">
+                                <span class="file-icon">${getFileIcon(file)}</span>
+                                <span class="file-name">${file.name}</span>
+                                <span class="file-size">${formatBytes(file.size)}</span>
+                                <span class="file-meta">in ${file.driveKey.substring(0, 8)}...</span>
+                                <button class="btn btn-secondary" onclick="event.stopPropagation(); downloadFile('${file.driveKey}', '${file.path}')">
+                                    Download
+                                </button>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+        });
+
+        // Stats
+        async function updateStats() {
+            if (!hyperShare.activeNetwork) return;
+            
+            try {
+                const stats = await hyperShare.getNetworkStats();
+                document.getElementById('peer-count').textContent = stats.peers;
+                document.getElementById('drive-count').textContent = stats.drives;
+            } catch (error) {
+                console.error('Failed to update stats:', error);
+            }
+        }
+
+        async function refreshDrives() {
+            const contentArea = document.getElementById('content-area');
+            contentArea.innerHTML = '<div class="loading"><div class="spinner"></div><p>Refreshing drives...</p></div>';
+            
+            try {
+                contentArea.innerHTML = await renderBrowseView();
+            } catch (error) {
+                contentArea.innerHTML = `
+                    <div class="error-state">
+                        <p style="color: var(--danger);">Error refreshing drives: ${error.message}</p>
+                        <button class="btn" onclick="refreshDrives()">Try Again</button>
+                    </div>
+                `;
+            }
+        }
+
+        // Utility functions
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function copyInvite(type) {
+            const code = document.getElementById(`${type}-invite-code`).textContent;
+            navigator.clipboard.writeText(code);
+            alert(`${type} invite copied to clipboard!`);
+        }
+
+        function toggleFilters() {
+            alert('Filters coming soon!');
+        }
+
+        // Initialize on load
+        init();
+    </script>
+</body>
+</html>

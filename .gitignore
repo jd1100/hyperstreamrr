@@ -1,0 +1,9 @@
+s*.md
+t*.md
+p*.md
+node_modules/*
+.env
+.claude
+.aiexclude
+CLAUDE.md
+g*.md
