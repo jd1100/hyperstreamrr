@@ -23,8 +23,11 @@
   "scripts": {
     "start": "pear run --dev .",
     "dev": "pear run --dev .",
-    "build": "pear stage hypershare",
+    "build": "vite build && pear stage hypershare",
+    "build:vite": "vite build",
+    "build:pear": "pear stage hypershare",
     "release": "pear release hypershare",
+    "preview": "vite preview",
     "test": "node test-network.js"
   },
   "dependencies": {
@@ -40,11 +43,15 @@
     "hyperdb": "^4.14.0",
     "hyperdht": "^6.20.5",
     "hyperdrive": "^11.6.2",
-    "hyperswarm": "^4.11.7"
+    "hyperswarm": "^4.11.7",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "pear-interface": "^1.1.0"
+    "@vitejs/plugin-react": "^4.6.0",
+    "pear-interface": "^1.1.0",
+    "vite": "^7.0.4"
   },
   "keywords": [
     "p2p",
