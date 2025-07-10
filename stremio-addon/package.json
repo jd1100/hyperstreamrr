@@ -1,0 +1,22 @@
+{
+  "name": "hyperstreamrr-stremio-addon",
+  "version": "1.0.0",
+  "description": "Stremio addon for HyperStreamrr P2P networks",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "keywords": ["stremio", "addon", "hyperstreamrr", "p2p"],
+  "author": "HyperStreamrr",
+  "license": "MIT",
+  "dependencies": {
+    "stremio-addon-sdk": "^1.6.6",
+    "express": "^4.18.0",
+    "cors": "^2.8.5",
+    "ws": "^8.13.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.20"
+  }
+}

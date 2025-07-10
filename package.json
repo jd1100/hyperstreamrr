@@ -40,7 +40,8 @@
     "hyperdb": "^4.14.0",
     "hyperdht": "^6.20.5",
     "hyperdrive": "^11.6.2",
-    "hyperswarm": "^4.11.7"
+    "hyperswarm": "^4.11.7",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

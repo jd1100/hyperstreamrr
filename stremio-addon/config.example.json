@@ -1,0 +1,37 @@
+{
+  "instances": [
+    {
+      "id": "local",
+      "name": "Local HyperStreamrr",
+      "host": "localhost",
+      "port": 8080,
+      "authKey": "your-auth-key-here",
+      "secure": false,
+      "description": "Local HyperStreamrr instance"
+    },
+    {
+      "id": "remote-home",
+      "name": "Home Server",
+      "host": "your-home-ip-or-domain.com",
+      "port": 8080,
+      "authKey": "your-home-auth-key",
+      "secure": false,
+      "description": "Home HyperStreamrr server"
+    },
+    {
+      "id": "friend-server",
+      "name": "Friend's Server",
+      "host": "friend.example.com",
+      "port": 8080,
+      "authKey": "friend-auth-key",
+      "secure": true,
+      "description": "Friend's HyperStreamrr instance"
+    }
+  ],
+  "addon": {
+    "port": 7000,
+    "cacheTimeout": 30000,
+    "maxRetries": 3,
+    "requestTimeout": 15000
+  }
+}

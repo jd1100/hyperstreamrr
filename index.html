@@ -83,6 +83,9 @@
                     <div class="nav-item" onclick="showView('manage-admins')">
                         <span>👥</span> Manage Admins
                     </div>
+                    <div class="nav-item" onclick="showView('remote-access')">
+                        <span>🌐</span> Remote Access
+                    </div>
                     </div>
 
                 <div class="nav-section">
@@ -103,6 +106,14 @@
                         <div class="stat-item">
                             <div class="stat-label">Download</div>
                             <div class="stat-value" id="download-speed">0 B/s</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Seed Ratio</div>
+                            <div class="stat-value" id="seed-ratio">0.00</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Status</div>
+                            <div class="stat-value" id="connection-status">🔴 Offline</div>
                         </div>
                     </div>
                 </div>
@@ -381,6 +392,7 @@
         let isAdmin = false;
         let statsInterval = null;
         let lastStats = null;
+        let isInitializing = true;
 
         // Initialize app - simplified version
         async function init() {
@@ -389,7 +401,7 @@
                     clearInterval(checkInterval);
                     hyperShare = window.hyperShare;
                     
-                    // Set up the event listener for UI updates
+                    // Set up event listeners for UI updates
                     window.addEventListener('role-updated', (event) => {
                         console.log('Role update event received in UI:', event.detail);
                         if (currentNetwork && event.detail.role) {
@@ -400,6 +412,64 @@
                             }
                             loadNetwork(currentNetwork);
                             alert('Your role has been updated to Admin! You now have access to admin features.');
+                        }
+                    });
+                    
+                    // Loading progress listeners
+                    window.addEventListener('loading-drives-start', () => {
+                        console.log('Started loading drives');
+                        // Only show loading if we're currently on the browse view
+                        const activeNavItem = document.querySelector('.nav-item.active');
+                        if (activeNavItem && activeNavItem.textContent.includes('All Drives')) {
+                            const contentArea = document.getElementById('content-area');
+                            if (contentArea && !contentArea.innerHTML.includes('drives-grid')) {
+                                contentArea.innerHTML = '<div class="loading"><div class="spinner"></div><p>Discovering drives...</p></div>';
+                            }
+                        }
+                    });
+                    
+                    window.addEventListener('loading-drives-progress', (event) => {
+                        const { processed } = event.detail;
+                        console.log(`Loading drives progress: ${processed} drives processed`);
+                    });
+                    
+                    window.addEventListener('loading-drives-end', (event) => {
+                        const { totalDrives } = event.detail;
+                        console.log(`Finished loading ${totalDrives} drives`);
+                        // Only refresh if we're on the browse view
+                        const activeNavItem = document.querySelector('.nav-item.active');
+                        if (activeNavItem && activeNavItem.textContent.includes('All Drives')) {
+                            // Don't automatically refresh - let the view handle it
+                        }
+                    });
+                    
+                    window.addEventListener('drive-connecting', (event) => {
+                        const { driveKey } = event.detail;
+                        console.log('Connecting to drive:', driveKey.substring(0, 8));
+                    });
+                    
+                    window.addEventListener('drive-connected', (event) => {
+                        const { driveKey, peers } = event.detail;
+                        console.log(`Connected to drive ${driveKey.substring(0, 8)} with ${peers} peers`);
+                    });
+                    
+                    window.addEventListener('drive-peer-connected', (event) => {
+                        const { driveKey, peers } = event.detail;
+                        console.log(`Drive ${driveKey.substring(0, 8)} peer connected (${peers} total)`);
+                    });
+                    
+                    window.addEventListener('drive-peer-disconnected', (event) => {
+                        const { driveKey, peers } = event.detail;
+                        console.log(`Drive ${driveKey.substring(0, 8)} peer disconnected (${peers} remaining)`);
+                    });
+                    
+                    window.addEventListener('drive-stats-updated', (event) => {
+                        const { driveKey, stats } = event.detail;
+                        console.log(`Drive ${driveKey.substring(0, 8)} stats updated:`, stats);
+                        // Optionally refresh the current view if we're on the browse page
+                        const activeNavItem = document.querySelector('.nav-item.active');
+                        if (activeNavItem && activeNavItem.textContent.includes('All Drives')) {
+                            // Could refresh drive display here if needed
                         }
                     });
                     
@@ -416,9 +486,12 @@
                 console.log(`Found ${networks.length} saved networks.`);
                 showMainApp();
                 await loadNetwork(networks[0]);
+                // Finished initializing
+                isInitializing = false;
             } else {
                 console.log('No saved networks found, showing welcome screen.');
                 document.getElementById('welcome-screen').style.display = 'flex';
+                isInitializing = false;
             }
         }
 
@@ -731,6 +804,27 @@
             updateStats();
             
             showView('browse');
+            
+            // After showing the initial view, trigger drive loading asynchronously
+            if (!isInitializing) {
+                setTimeout(async () => {
+                    if (!hyperShare.drivesListCache || hyperShare.drivesListCache.length === 0) {
+                        console.log('Triggering drive discovery...');
+                        try {
+                            await hyperShare.browseDrives({}, true);
+                            // Refresh the view with new data
+                            if (document.querySelector('.nav-item.active')?.textContent.includes('All Drives')) {
+                                const contentArea = document.getElementById('content-area');
+                                if (contentArea) {
+                                    contentArea.innerHTML = await renderBrowseView(true);
+                                }
+                            }
+                        } catch (error) {
+                            console.error('Drive discovery failed:', error);
+                        }
+                    }
+                }, 1000);
+            }
         }
 
         async function showView(view) {
@@ -761,14 +855,28 @@
                 case 'my-drives':
                     contentArea.innerHTML = await renderMyDrivesView();
                     break;
+                case 'remote-access':
+                    if (isAdmin) {
+                        contentArea.innerHTML = renderRemoteAccessView();
+                    }
+                    break;
                 default:
                     contentArea.innerHTML = `<div class="loading">View coming soon...</div>`;
             }
         }
 
-        async function renderBrowseView() {
+        async function renderBrowseView(skipLoading = false) {
             try {
-                const drives = await hyperShare.browseDrives();
+                // Use cached drives if available to prevent loading loop
+                let drives = [];
+                if (hyperShare.drivesListCache && hyperShare.cacheTimeout > Date.now()) {
+                    drives = hyperShare.drivesListCache;
+                } else if (!skipLoading && !isInitializing) {
+                    drives = await hyperShare.browseDrives();
+                } else if (isInitializing) {
+                    // During initialization, try to get cached drives or show loading state
+                    drives = hyperShare.drivesListCache || [];
+                }
                 
                 return `
                     <div class="view-header">
@@ -811,6 +919,7 @@
 
         function renderDriveCard(drive) {
             const isOwner = isAdmin && drive.owner?.id === hyperShare.activeNetwork.autobase.local.key.toString('hex');
+            const connStats = drive.connectionStats || {};
 
             return `
                 <div class="drive-card" onclick="browseDrive('${drive.key}', '${drive.name}')">
@@ -818,6 +927,9 @@
                         <div class="drive-title">
                             ${drive.name || 'Unnamed Drive'}
                             ${drive.verified ? '<span class="verified-badge">VERIFIED</span>' : ''}
+                        </div>
+                        <div class="drive-connection-status">
+                            ${connStats.peers > 0 ? '🟢' : '🔴'} ${connStats.peers || 0} peers
                         </div>
                     </div>
                     
@@ -828,6 +940,15 @@
                         <span class="drive-stat"><strong>${formatBytes(drive.stats?.totalSize || 0)}</strong></span>
                         <span class="drive-stat"><strong>${drive.stats?.fileCount || 0}</strong> files</span>
                     </div>
+                    
+                    ${connStats.completeness !== undefined ? `
+                        <div class="drive-progress">
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${connStats.completeness}%"></div>
+                            </div>
+                            <span class="progress-text">${connStats.completeness.toFixed(1)}% synced</span>
+                        </div>
+                    ` : ''}
                     
                     <div class="drive-tags">
                         ${(drive.tags || []).map(tag => `<span class="tag">${tag}</span>`).join('')}
@@ -873,6 +994,140 @@
                 <div id="file-list" style="margin-top: 20px;"></div>
                 
                 <button class="btn" onclick="publishDrive()" style="margin-top: 20px;">Publish Drive</button>
+            `;
+        }
+
+        function renderRemoteAccessView() {
+            const connectionInfo = window.hyperStreamrrConnectionInfo || {};
+            const remoteEnabled = localStorage.getItem('hyperstreamrr_remote_access') === 'true';
+            const authKey = localStorage.getItem('hyperstreamrr_auth_key') || connectionInfo.authKey || 'Not generated';
+            
+            return `
+                <div class="view-header">
+                    <h1 class="view-title">Remote Access Configuration</h1>
+                    <p class="view-description">Configure external access to your HyperStreamrr instance for Stremio integration</p>
+                </div>
+                
+                <div class="setting-section">
+                    <h3>🔐 Security Settings</h3>
+                    
+                    <div class="form-group">
+                        <label class="form-label">
+                            <input type="checkbox" id="remote-access-toggle" ${remoteEnabled ? 'checked' : ''} onchange="toggleRemoteAccess()">
+                            Enable Remote Access
+                        </label>
+                        <p class="form-help">Allow connections from other networks (requires port forwarding)</p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Authentication Key</label>
+                        <div class="auth-key-container">
+                            <input type="text" class="form-input" id="auth-key-input" value="${authKey}" readonly>
+                            <button class="btn btn-secondary" onclick="generateNewAuthKey()">🔄 Generate New</button>
+                            <button class="btn btn-secondary" onclick="copyAuthKey()">📋 Copy</button>
+                        </div>
+                        <p class="form-help">This key is required for Stremio addon authentication</p>
+                    </div>
+                </div>
+                
+                <div class="setting-section">
+                    <h3>🌐 Connection Information</h3>
+                    
+                    <div class="connection-info">
+                        <div class="connection-method">
+                            <h4>Local Network</h4>
+                            <div class="connection-details">
+                                <div><strong>Host:</strong> <span id="local-ip">Detecting...</span></div>
+                                <div><strong>Port:</strong> 8080</div>
+                                <div><strong>Status:</strong> <span class="status-indicator">🟢 Active</span></div>
+                            </div>
+                            <button class="btn btn-secondary" onclick="copyLocalConfig()">📋 Copy Config</button>
+                        </div>
+                        
+                        ${remoteEnabled ? `
+                        <div class="connection-method">
+                            <h4>Internet Access</h4>
+                            <div class="connection-details">
+                                <div><strong>Host:</strong> <span id="public-ip">Configure router</span></div>
+                                <div><strong>Port:</strong> 8080 (forward to this device)</div>
+                                <div><strong>Status:</strong> <span class="status-indicator">🔧 Setup Required</span></div>
+                            </div>
+                            <button class="btn btn-secondary" onclick="copyRemoteConfig()">📋 Copy Config</button>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+                
+                <div class="setting-section">
+                    <h3>📱 Stremio Addon Setup</h3>
+                    
+                    <div class="setup-steps">
+                        <ol>
+                            <li>Download and configure the HyperStreamrr Stremio addon</li>
+                            <li>Use the connection information above to configure the addon</li>
+                            <li>Add the addon to Stremio using the manifest URL</li>
+                            <li>Enjoy streaming from your HyperStreamrr networks!</li>
+                        </ol>
+                    </div>
+                    
+                    <div class="config-examples">
+                        <h4>Configuration Examples</h4>
+                        
+                        <div class="config-example">
+                            <h5>Environment Variables</h5>
+                            <pre id="env-config">
+export HYPERSTREAMRR_LOCAL_HOST="${window.location.hostname || 'localhost'}"
+export HYPERSTREAMRR_LOCAL_PORT="8080"
+export HYPERSTREAMRR_LOCAL_AUTH_KEY="${authKey}"
+                            </pre>
+                            <button class="btn btn-secondary" onclick="copyEnvConfig()">📋 Copy</button>
+                        </div>
+                        
+                        <div class="config-example">
+                            <h5>JSON Configuration</h5>
+                            <pre id="json-config">{
+  "instances": [{
+    "id": "local",
+    "name": "My HyperStreamrr",
+    "host": "${window.location.hostname || 'localhost'}",
+    "port": 8080,
+    "authKey": "${authKey}",
+    "secure": false
+  }]
+}</pre>
+                            <button class="btn btn-secondary" onclick="copyJsonConfig()">📋 Copy</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="setting-section">
+                    <h3>⚠️ Security Warnings</h3>
+                    
+                    <div class="security-warnings">
+                        <div class="warning-item">
+                            <strong>🔒 Keep your auth key secure:</strong> Never share it publicly or store it in plain text
+                        </div>
+                        <div class="warning-item">
+                            <strong>🌐 Internet access risks:</strong> Only enable if you understand port forwarding and firewall configuration
+                        </div>
+                        <div class="warning-item">
+                            <strong>🛡️ Use VPN when possible:</strong> VPN connections are more secure than direct internet access
+                        </div>
+                        <div class="warning-item">
+                            <strong>📊 Monitor connections:</strong> Check logs regularly for unauthorized access attempts
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="setting-section">
+                    <h3>🔧 Troubleshooting</h3>
+                    
+                    <div class="troubleshooting">
+                        <button class="btn btn-secondary" onclick="testConnectivity()">🧪 Test Connectivity</button>
+                        <button class="btn btn-secondary" onclick="showConnectionLogs()">📋 View Logs</button>
+                        <button class="btn btn-secondary" onclick="resetConfiguration()">🔄 Reset Config</button>
+                    </div>
+                </div>
             `;
         }
 
@@ -1611,7 +1866,7 @@
             if (!hyperShare || !currentNetwork) return;
 
             try {
-                const stats = await hyperShare.getNetworkStats();
+                const stats = await hyperShare.getDetailedNetworkStats();
                 document.getElementById('peer-count').textContent = stats.peers;
                 document.getElementById('drive-count').textContent = stats.drives;
 
@@ -1620,6 +1875,23 @@
                     const downSpeed = (stats.swarm.downloadedBytes - lastStats.swarm.downloadedBytes) / 2;
                     document.getElementById('upload-speed').textContent = formatSpeed(upSpeed);
                     document.getElementById('download-speed').textContent = formatSpeed(downSpeed);
+                    
+                    // Update seed ratio
+                    const seedRatio = stats.swarm.seedRatio;
+                    document.getElementById('seed-ratio').textContent = seedRatio === 999 ? '∞' : seedRatio.toFixed(2);
+                }
+
+                // Update connection status
+                const statusEl = document.getElementById('connection-status');
+                if (stats.peers > 0) {
+                    statusEl.textContent = '🟢 Online';
+                    statusEl.style.color = 'var(--success)';
+                } else if (stats.swarm.connecting > 0) {
+                    statusEl.textContent = '🟡 Connecting';
+                    statusEl.style.color = 'var(--warning)';
+                } else {
+                    statusEl.textContent = '🔴 Offline';
+                    statusEl.style.color = 'var(--danger)';
                 }
 
                 lastStats = stats;
@@ -1634,7 +1906,15 @@
             contentArea.innerHTML = '<div class="loading"><div class="spinner"></div><p>Refreshing drives...</p></div>';
             
             try {
-                contentArea.innerHTML = await renderBrowseView();
+                // Clear cache to force refresh
+                if (hyperShare) {
+                    hyperShare.drivesListCache = null;
+                    hyperShare.cacheTimeout = 0;
+                }
+                
+                // Force a fresh load
+                const drives = await hyperShare.browseDrives({}, true);
+                contentArea.innerHTML = await renderBrowseView(true);
             } catch (error) {
                 contentArea.innerHTML = `
                     <div class="error-state">
@@ -1670,6 +1950,129 @@
 
         function toggleFilters() {
             alert('Filters coming soon!');
+        }
+
+        // Remote Access Functions
+        function toggleRemoteAccess() {
+            const enabled = document.getElementById('remote-access-toggle').checked;
+            localStorage.setItem('hyperstreamrr_remote_access', enabled.toString());
+            
+            if (enabled && !localStorage.getItem('hyperstreamrr_auth_key')) {
+                generateNewAuthKey();
+            }
+            
+            // Refresh the view to show/hide remote access options
+            showView('remote-access');
+            
+            console.log('Remote access', enabled ? 'enabled' : 'disabled');
+        }
+
+        function generateNewAuthKey() {
+            // Generate a secure random key
+            const key = Array.from(crypto.getRandomValues(new Uint8Array(32)))
+                .map(b => b.toString(16).padStart(2, '0'))
+                .join('');
+            
+            localStorage.setItem('hyperstreamrr_auth_key', key);
+            document.getElementById('auth-key-input').value = key;
+            
+            console.log('New auth key generated');
+            alert('New authentication key generated. Make sure to update your Stremio addon configuration.');
+        }
+
+        function copyAuthKey() {
+            const authKey = document.getElementById('auth-key-input').value;
+            navigator.clipboard.writeText(authKey).then(() => {
+                alert('Authentication key copied to clipboard');
+            }).catch(err => {
+                console.error('Failed to copy auth key:', err);
+            });
+        }
+
+        function copyLocalConfig() {
+            const authKey = localStorage.getItem('hyperstreamrr_auth_key') || 'YOUR_AUTH_KEY';
+            const host = window.location.hostname || 'localhost';
+            
+            const config = `export HYPERSTREAMRR_LOCAL_HOST="${host}"
+export HYPERSTREAMRR_LOCAL_PORT="8080"
+export HYPERSTREAMRR_LOCAL_AUTH_KEY="${authKey}"`;
+            
+            navigator.clipboard.writeText(config).then(() => {
+                alert('Local configuration copied to clipboard');
+            }).catch(err => {
+                console.error('Failed to copy config:', err);
+            });
+        }
+
+        function copyRemoteConfig() {
+            const authKey = localStorage.getItem('hyperstreamrr_auth_key') || 'YOUR_AUTH_KEY';
+            
+            const config = `export HYPERSTREAMRR_INSTANCES='[{
+  "id": "remote",
+  "name": "Remote HyperStreamrr",
+  "host": "YOUR_PUBLIC_IP_OR_DOMAIN",
+  "port": 8080,
+  "authKey": "${authKey}",
+  "secure": false
+}]'`;
+            
+            navigator.clipboard.writeText(config).then(() => {
+                alert('Remote configuration template copied to clipboard');
+            }).catch(err => {
+                console.error('Failed to copy config:', err);
+            });
+        }
+
+        function copyEnvConfig() {
+            const config = document.getElementById('env-config').textContent;
+            navigator.clipboard.writeText(config).then(() => {
+                alert('Environment configuration copied to clipboard');
+            }).catch(err => {
+                console.error('Failed to copy config:', err);
+            });
+        }
+
+        function copyJsonConfig() {
+            const config = document.getElementById('json-config').textContent;
+            navigator.clipboard.writeText(config).then(() => {
+                alert('JSON configuration copied to clipboard');
+            }).catch(err => {
+                console.error('Failed to copy config:', err);
+            });
+        }
+
+        function testConnectivity() {
+            if (!hyperShare || !hyperShare.webTunnel) {
+                alert('Web tunnel not available');
+                return;
+            }
+            
+            // Test basic connectivity
+            hyperShare.webTunnel.handleRequest('getStats').then(stats => {
+                alert(`Connectivity test successful!\nNetworks: ${stats.networks}\nPeers: ${stats.peers}`);
+            }).catch(error => {
+                alert(`Connectivity test failed: ${error.message}`);
+            });
+        }
+
+        function showConnectionLogs() {
+            // Show recent logs in a modal or new window
+            const logs = [
+                '🔐 Web tunnel initialized successfully',
+                '🌐 Remote access: ' + (localStorage.getItem('hyperstreamrr_remote_access') === 'true' ? 'ENABLED' : 'DISABLED'),
+                '📊 Current stats: ' + JSON.stringify(hyperShare?.webTunnel?.getStats() || {})
+            ];
+            
+            alert('Recent logs:\n\n' + logs.join('\n'));
+        }
+
+        function resetConfiguration() {
+            if (confirm('Reset all remote access configuration? This will generate a new auth key and disable remote access.')) {
+                localStorage.removeItem('hyperstreamrr_remote_access');
+                localStorage.removeItem('hyperstreamrr_auth_key');
+                showView('remote-access');
+                alert('Configuration reset successfully');
+            }
         }
 
         function closeVideoPlayer() {

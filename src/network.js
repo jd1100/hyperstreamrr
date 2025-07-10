@@ -10,6 +10,7 @@ import fs from 'fs';
 import { openView, applyChanges } from './db.js';
 import { createInvite as createInviteFunc } from './crypto.js';
 import { getFileType } from './utils.js';
+import { WebTunnelServer } from './web-tunnel.js';
 
 export class HyperShareNetwork {
   constructor() {
@@ -22,6 +23,7 @@ export class HyperShareNetwork {
     this.driveCache = new Map();
     this.drivesListCache = null;
     this.cacheTimeout = null;
+    this.webTunnel = null;
   }
 
   async init() {
@@ -33,6 +35,10 @@ export class HyperShareNetwork {
     await this.initLocalStorage();
     
     await this.loadSavedNetworks();
+    
+    // Initialize web tunnel for cross-network access
+    this.initWebTunnel();
+    
     this.ready = true;
     console.log('HyperShareNetwork initialization complete. Ready:', this.ready);
     console.log('Networks loaded:', this.networks.size);
@@ -59,6 +65,27 @@ export class HyperShareNetwork {
       // Fallback to JSON file storage if hypercore fails
       this.localStore = null;
       this.networksCore = null;
+    }
+  }
+
+  initWebTunnel() {
+    try {
+      // Check for tunnel configuration (can be set via settings)
+      const enableRemoteAccess = localStorage?.getItem('hyperstreamrr_remote_access') === 'true';
+      const authKey = localStorage?.getItem('hyperstreamrr_auth_key');
+      
+      this.webTunnel = new WebTunnelServer(this, {
+        port: 8080,
+        enableRemoteAccess: enableRemoteAccess,
+        authKey: authKey,
+        maxConnections: 50
+      });
+      
+      this.webTunnel.start();
+      
+      console.log('🔐 Web tunnel initialized successfully');
+    } catch (error) {
+      console.error('❌ Failed to initialize web tunnel:', error);
     }
   }
 
@@ -400,24 +427,43 @@ export class HyperShareNetwork {
 
   async getDriveStats(driveKey) {
     if (!this.activeNetwork) return null;
-    const drive = await this.getDrive(driveKey);
-    if (!drive) return null;
+    
+    try {
+      const drive = await this.getDrive(driveKey);
+      if (!drive) return null;
 
-    await drive.update();
+      // Quick update without waiting for full sync
+      await drive.update();
 
-    const stats = {
-      peers: drive.core.peers.length,
-      totalBlocks: drive.core.length,
-      downloadedBlocks: drive.core.downloaded()
-    };
+      const stats = {
+        peers: drive.core.peers.length,
+        totalBlocks: drive.core.length,
+        downloadedBlocks: drive.core.contiguousLength || 0,
+        uploadedBytes: drive.core.stats?.totals?.uploadedBytes || 0,
+        downloadedBytes: drive.core.stats?.totals?.downloadedBytes || 0,
+        connected: drive.core.peers.length > 0
+      };
 
-    if (drive.blobs) {
-      await drive.blobs.update();
-      stats.totalBlocks += drive.blobs.core.length;
-      stats.downloadedBlocks += drive.blobs.core.downloaded();
+      // Check if blobs core exists and has the expected methods
+      if (drive.blobs && drive.blobs.core) {
+        try {
+          if (typeof drive.blobs.core.update === 'function') {
+            await drive.blobs.core.update();
+          }
+          stats.totalBlocks += drive.blobs.core.length || 0;
+          stats.downloadedBlocks += drive.blobs.core.contiguousLength || 0;
+          stats.uploadedBytes += drive.blobs.core.stats?.totals?.uploadedBytes || 0;
+          stats.downloadedBytes += drive.blobs.core.stats?.totals?.downloadedBytes || 0;
+        } catch (blobError) {
+          console.log('Blob stats unavailable:', blobError.message);
+        }
+      }
+
+      return stats;
+    } catch (error) {
+      console.error('Error getting drive stats:', error);
+      return null;
     }
-
-    return stats;
   }
 
   async startWriterAdditionMonitoring(network) {
@@ -573,8 +619,49 @@ export class HyperShareNetwork {
       connecting: swarm.connecting,
       topics: swarm.topics.size,
       uploadedBytes: stats?.totals?.uploadedBytes || 0,
-      downloadedBytes: stats?.totals?.downloadedBytes || 0
+      downloadedBytes: stats?.totals?.downloadedBytes || 0,
+      seedRatio: this.calculateSeedRatio(stats)
     };
+  }
+
+  calculateSeedRatio(stats) {
+    if (!stats?.totals) return 0;
+    const uploaded = stats.totals.uploadedBytes || 0;
+    const downloaded = stats.totals.downloadedBytes || 0;
+    return downloaded > 0 ? (uploaded / downloaded) : (uploaded > 0 ? 999 : 0);
+  }
+
+  async getDetailedNetworkStats() {
+    if (!this.activeNetwork) return null;
+    
+    const basicStats = await this.getNetworkStats();
+    const swarmStats = this.getSwarmStats();
+    
+    return {
+      ...basicStats,
+      swarm: swarmStats,
+      driveStats: await this.getAllDriveStats()
+    };
+  }
+
+  async getAllDriveStats() {
+    if (!this.activeNetwork) return [];
+    
+    const drives = await this.browseDrives({}, true);
+    const driveStats = [];
+    
+    for (const drive of drives) {
+      const stats = await this.getDriveStats(drive.key);
+      if (stats) {
+        driveStats.push({
+          key: drive.key,
+          name: drive.name,
+          ...stats
+        });
+      }
+    }
+    
+    return driveStats;
   }
 
   async scanDrive(drive) {
@@ -710,6 +797,7 @@ export class HyperShareNetwork {
       window.dispatchEvent(new CustomEvent('loading-drives-start'));
     }
 
+    // Force network sync first
     await this.activeNetwork.autobase.update();
     
     const db = this.activeNetwork.autobase.view;
@@ -722,18 +810,83 @@ export class HyperShareNetwork {
     
     const drives = [];
     const prefix = '/drives/';
-    for await (const node of db.createReadStream({ gt: prefix, lt: prefix + '~' })) {
-      const value = node.value;
-      if (filters.verified && !value.verified) continue;
-      if (filters.category && !value.categories?.includes(filters.category)) continue;
-      drives.push({ key: node.key.replace(prefix, ''), ...value });
+    let processedCount = 0;
+    const startTime = Date.now();
+    const maxProcessingTime = 30000; // 30 seconds max
+    
+    try {
+      for await (const node of db.createReadStream({ gt: prefix, lt: prefix + '~' })) {
+        // Check for timeout to prevent infinite loops
+        if (Date.now() - startTime > maxProcessingTime) {
+          console.warn('Drive discovery timeout reached, stopping scan');
+          break;
+        }
+        
+        const value = node.value;
+      
+        // Filter logic
+        if (filters.verified && !value.verified) continue;
+        if (filters.category && !value.categories?.includes(filters.category)) continue;
+        
+        // Get drive stats if available (async, non-blocking)
+        try {
+          const driveKey = node.key.replace(prefix, '');
+          // Skip stats for now to avoid blocking - we can load them later
+          value.connectionStats = {
+            peers: 0,
+            downloadedBlocks: 0,
+            totalBlocks: 0,
+            completeness: 0
+          };
+          
+          // Load stats asynchronously without blocking
+          this.getDriveStats(driveKey).then(driveStats => {
+            if (driveStats && this.drivesListCache) {
+              const cachedDrive = this.drivesListCache.find(d => d.key === driveKey);
+              if (cachedDrive) {
+                cachedDrive.connectionStats = {
+                  peers: driveStats.peers,
+                  downloadedBlocks: driveStats.downloadedBlocks,
+                  totalBlocks: driveStats.totalBlocks,
+                  completeness: driveStats.totalBlocks > 0 ? (driveStats.downloadedBlocks / driveStats.totalBlocks) * 100 : 0
+                };
+                
+                // Update UI if needed
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('drive-stats-updated', {
+                    detail: { driveKey, stats: cachedDrive.connectionStats }
+                  }));
+                }
+              }
+            }
+          }).catch(error => {
+            console.log('Failed to get stats for drive:', driveKey, error.message);
+          });
+        } catch (error) {
+          console.error('Error setting up drive stats:', error);
+        }
+        
+        drives.push({ key: node.key.replace(prefix, ''), ...value });
+        processedCount++;
+        
+        // Send progress updates every 5 drives
+        if (typeof window !== 'undefined' && processedCount % 5 === 0) {
+          window.dispatchEvent(new CustomEvent('loading-drives-progress', {
+            detail: { processed: processedCount }
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error during drive discovery:', error);
     }
     
     this.drivesListCache = drives;
     this.cacheTimeout = Date.now() + 30000; // 30 second cache
 
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('loading-drives-end'));
+      window.dispatchEvent(new CustomEvent('loading-drives-end', {
+        detail: { totalDrives: drives.length }
+      }));
     }
 
     return drives;
@@ -833,16 +986,45 @@ export class HyperShareNetwork {
     const userDriveKey = b4a.toString(network.userDrive.key, 'hex');
     if (driveKey === userDriveKey) return network.userDrive;
 
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('drive-connecting', {
+        detail: { driveKey, status: 'connecting' }
+      }));
+    }
+
     const key = b4a.from(driveKey, 'hex');
     const drive = new Hyperdrive(network.store, key);
     await drive.ready();
 
     network.swarm.join(drive.discoveryKey, { server: true, client: true });
     
-    // Don't wait for full sync, just update to get the latest info
+    // Set up connection tracking
+    drive.core.on('peer-add', () => {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('drive-peer-connected', {
+          detail: { driveKey, peers: drive.core.peers.length }
+        }));
+      }
+    });
+    
+    drive.core.on('peer-remove', () => {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('drive-peer-disconnected', {
+          detail: { driveKey, peers: drive.core.peers.length }
+        }));
+      }
+    });
+    
+    // Quick update to get basic info
     await drive.update();
 
     this.driveCache.set(driveKey, drive);
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('drive-connected', {
+        detail: { driveKey, peers: drive.core.peers.length }
+      }));
+    }
 
     return drive;
   }
